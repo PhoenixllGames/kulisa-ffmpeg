@@ -4,8 +4,8 @@
 
 .DESCRIPTION
   Extracts the zip into a new empty directory, then runs the checks of the release process:
-    1. license and configure line (LGPL 2.1 or later, no gpl, nonfree or version3), zip contents and
-       notices
+    1. license, configure line (LGPL 2.1 or later; a non-empty option list, equal to the one in
+       BUILDINFO.txt, without gpl, nonfree or version3), the exact file set of the zip and the notices
     2. encoders, hwaccels and filters of the allow list, compared by exact name
     3. H.264 plus AAC FLV transcode through stdin and stdout with h264_mf (hw_encoding 0 and 1)
     4. one-frame probe of every GPU encoder
@@ -167,16 +167,9 @@ $licText = (($lic.Out + $lic.Err) -replace '\s+', ' ').Trim()
 Add-Result 'license' ($licText -match 'GNU Lesser General Public License' -and $licText -match 'version 2\.1 of the License, or \(at your option\) any later version' -and $licText -notmatch 'GNU General Public License as') $licText.Substring(0, [Math]::Min(200, $licText.Length))
 $bc = Invoke-Tool $ff @('-hide_banner', '-buildconf')
 $bcText = $bc.Out + $bc.Err
-$forbidden = @('--enable-gpl', '--enable-nonfree', '--enable-version3') | Where-Object { $bcText -match [regex]::Escape($_) }
-Add-Result 'buildconf' (@($forbidden).Count -eq 0) ("no forbidden switch; options: " + ((($bcText -split "`n") | Where-Object { $_ -match '^\s+--' }).Count))
 $bcText | Set-Content -Path (Join-Path $Scratch 'buildconf.txt')
-# BUILDINFO.txt must carry the configure line exactly as -buildconf prints it.
-$infoLines = Get-Content (Join-Path $Dest 'BUILDINFO.txt')
-$start = [Array]::IndexOf($infoLines, '  configuration:')
-$block = @()
-if ($start -ge 0) {
-  for ($i = $start; $i -lt $infoLines.Count -and $infoLines[$i].Trim() -ne ''; $i++) { $block += $infoLines[$i] }
-}
+# The configure line exactly as -buildconf prints it: the title line "  configuration:" and one
+# "    --option" line per option.
 $bcLines = @(($bcText -split "`r?`n") | Where-Object { $_.Trim() -ne '' })
 $bcStart = [Array]::IndexOf($bcLines, '  configuration:')
 $bcBlock = @()
@@ -186,19 +179,57 @@ if ($bcStart -ge 0) {
     $bcBlock += $bcLines[$i]
   }
 }
-Add-Result 'buildinfo matches -buildconf' (($block -join "`n") -ceq ($bcBlock -join "`n")) ("{0} lines in BUILDINFO, {1} lines printed" -f $block.Count, $bcBlock.Count)
-$others = @('LICENSE.txt', 'BUILDINFO.txt', 'bin\ffmpeg.exe', 'licenses\FFmpeg-LICENSE.md', 'licenses\FFmpeg-third-party-notices.txt',
-  'licenses\mingw-w64-runtime.txt', 'licenses\AMF-LICENSE.txt', 'licenses\libvpl-LICENSE.txt', 'licenses\nv-codec-headers-LICENSE.txt') |
-  Where-Object { -not (Test-Path (Join-Path $Dest $_)) }
-Add-Result 'zip contents' (@($others).Count -eq 0) ("missing: " + ($others -join ','))
+# The same block in BUILDINFO.txt (a blank line ends it).
+$infoLines = @(Get-Content (Join-Path $Dest 'BUILDINFO.txt'))
+$start = [Array]::IndexOf($infoLines, '  configuration:')
+$block = @()
+if ($start -ge 0) {
+  for ($i = $start; $i -lt $infoLines.Count -and $infoLines[$i].Trim() -ne ''; $i++) { $block += $infoLines[$i] }
+}
+$bcOptions = @($bcBlock | Where-Object { $_ -match '^    --' })
+$infoOptions = @($block | Where-Object { $_ -match '^    --' })
+$forbidden = @('--enable-gpl', '--enable-nonfree', '--enable-version3') | Where-Object { $bcText -match [regex]::Escape($_) }
+$bcEqual = ($bcOptions.Count -gt 0) -and ($infoOptions.Count -gt 0) -and (($block -join "`n") -ceq ($bcBlock -join "`n"))
+Add-Result 'buildconf' ((@($forbidden).Count -eq 0) -and $bcEqual) ("{0} options printed by -buildconf, {1} in BUILDINFO.txt, equal and not empty: {2}; forbidden switches: {3}" -f $bcOptions.Count, $infoOptions.Count, $bcEqual, $(if (@($forbidden).Count -eq 0) { 'none' } else { $forbidden -join ',' }))
+
+# The exact file set of the zip: bin\ffmpeg.exe, one DLL per FFmpeg library (the major version of each
+# library is read from "ffmpeg -version"), LICENSE.txt, BUILDINFO.txt and every file of licenses\. A
+# missing file, an extra file and a directory entry all fail the check.
+$ver = Invoke-Tool $ff @('-hide_banner', '-version')
+$libs = @(Get-ComponentList 'LIBRARIES')
+$dlls = @()
+foreach ($lib in $libs) {
+  if (($ver.Out + $ver.Err) -match "(?m)^lib$lib\s+(\d+)\.") { $dlls += "bin/$lib-$($Matches[1]).dll" } else { $dlls += "bin/$lib-<major not found>.dll" }
+}
+$expectedFiles = @('bin/ffmpeg.exe') + $dlls + @('LICENSE.txt', 'BUILDINFO.txt',
+  'licenses/AMF-LICENSE.txt', 'licenses/FFmpeg-LICENSE.md', 'licenses/FFmpeg-third-party-notices.txt',
+  'licenses/libstdc++-notices.txt', 'licenses/libvpl-LICENSE.txt', 'licenses/mingw-w64-headers-notices.txt',
+  'licenses/mingw-w64-runtime.txt', 'licenses/nv-codec-headers-LICENSE.txt')
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zipHandle = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $Zip).Path)
+$zipNames = @($zipHandle.Entries | ForEach-Object { $_.FullName })
+$zipHandle.Dispose()
+$missingFiles = @($expectedFiles | Where-Object { $zipNames -cnotcontains $_ })
+$extraFiles = @($zipNames | Where-Object { $expectedFiles -cnotcontains $_ })
+Add-Result 'zip contents' ($missingFiles.Count -eq 0 -and $extraFiles.Count -eq 0) ("{0} files expected, {1} in the zip; missing: {2}; extra: {3}" -f $expectedFiles.Count, $zipNames.Count, ($missingFiles -join ','), ($extraFiles -join ','))
 # The notices name their license families; IJG code needs its sentence, the mingw-w64 runtime its
-# ZPL and gdtoa notices.
-$notices = Get-Content -Raw (Join-Path $Dest 'licenses\FFmpeg-third-party-notices.txt') -ErrorAction SilentlyContinue
-$mingw = Get-Content -Raw (Join-Path $Dest 'licenses\mingw-w64-runtime.txt') -ErrorAction SilentlyContinue
+# ZPL and gdtoa notices, the libvpl dispatcher's libstdc++ headers their HP and SGI notices and the GCC
+# Runtime Library Exception, and the FFmpeg blocks that name an origin the license text of that origin.
+function Get-NoticeText([string]$name) {
+  $path = Join-Path $Dest ('licenses\' + $name)
+  if (Test-Path $path) { return Get-Content -Raw $path } else { return '' }
+}
+$notices = Get-NoticeText 'FFmpeg-third-party-notices.txt'
+$mingw = Get-NoticeText 'mingw-w64-runtime.txt'
+$stdcxx = Get-NoticeText 'libstdc++-notices.txt'
+$amf = Get-NoticeText 'AMF-LICENSE.txt'
 $families = if ($notices -match '(?m)^Licenses: (.*)$') { $Matches[1].Trim() } else { '' }
 $ijgOk = ($families -cnotmatch '\bIJG\b') -or $notices.Contains('This software is based in part on the work of the Independent JPEG Group.')
-$mingwOk = $null -ne $mingw -and $mingw.Contains('License: ZPL-2.1') -and $mingw.Contains('License: Lucent')
-Add-Result 'notices' ($families -ne '' -and $ijgOk -and $mingwOk) ("families: {0}; IJG sentence ok: {1}; mingw-w64 ZPL and Lucent: {2}" -f $families, $ijgOk, $mingwOk)
+$mingwOk = $mingw.Contains('License: ZPL-2.1') -and $mingw.Contains('License: Lucent')
+$originsOk = $notices.Contains('Aaron D. Gifford') -and $notices.Contains('Nicolas P. Rougier') -and $notices.Contains('DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE') -and $notices.Contains('Boost Software License - Version 1.0')
+$stdcxxOk = $stdcxx.Contains('Hewlett-Packard') -and $stdcxx.Contains('Silicon Graphics') -and $stdcxx.Contains('GCC RUNTIME LIBRARY EXCEPTION')
+$amfOk = $amf.Contains('Advanced Micro Devices') -and $amf.Contains('Permission is hereby granted')
+Add-Result 'notices' ($families -ne '' -and $ijgOk -and $mingwOk -and $originsOk -and $stdcxxOk -and $amfOk) ("families: {0}; IJG sentence ok: {1}; mingw-w64 ZPL and Lucent: {2}; origin texts: {3}; libstdc++ HP, SGI and runtime exception: {4}; AMF: {5}" -f $families, $ijgOk, $mingwOk, $originsOk, $stdcxxOk, $amfOk)
 
 # 2. Encoders, hwaccels, filters, compared by exact (case-sensitive) name
 # Encoders: exactly the allow list (h264_mf, h264_nvenc, h264_amf, h264_qsv, aac and wrapped_avframe).
