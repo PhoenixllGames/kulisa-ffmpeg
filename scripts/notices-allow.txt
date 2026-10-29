@@ -1,5 +1,10 @@
-# Reviewed comment blocks with license-like words in the FFmpeg code of this build (scripts/notices.py).
-# Line format: <SHA-256 of the normalized block text> <family> <file>
+# Reviewed comment blocks with license-like words in the FFmpeg code and the external headers of this build (scripts/notices.py).
+# Line format: <SHA-256 of the normalized block text> <family> <file> [origin=<name>[,<name>]]
+# <file> is a path of the FFmpeg source tree, or <project>:<path> / <project>:* (any file of the external
+# project nv-codec-headers, AMF, libvpl, libstdc++, gcc or mingw-w64; the hash still pins the text).
+# origin=<name> names the file third-party/origin-<name>.txt (license text of the project the block says
+# the code derives from, with its source URL); required for BSD-origin-named and
+# public-domain-origin-named.
 # Families: IJG, BSD, BSL-1.0, MIT, ISC, zlib, BSD-origin-named and public-domain-origin-named (blocks that
 # name the license of the code they derive from), none (not license text, for example the API
 # documentation of avcodec_license(); not copied). Blocks of every family except none are copied verbatim
@@ -15,8 +20,8 @@ ac88e9fa8ae04c1caf9eeaddc8584f53b445edfc1804e6d1384ad6a67ba94787 BSD libavutil/f
 c9405f7d87210d8417f845a9f7a21c756ce045a93074dfd1eb363ddc9c0b73fa BSD libavutil/fixed_dsp.h
 798b57175fee0e401a167f2592d9a402c68336fa2fe4514deb20de0d5c9d98d2 BSD libavutil/softfloat_tables.h
 b60486b44efe79125087442a7bd2904b2b8e33965c84ccecfd9a194d87437913 BSD libavutil/uuid.c
-29428ae86b343307434caffe83d137edf6c22b8a57997365149d08402fa0c6c5 BSL-1.0 libavutil/libm.h
-8f1658d6cde70ba06bff2edfdfa92ea7821978e384c2ba05972aceae1cfdbfdc BSL-1.0 libavutil/mathematics.c
+29428ae86b343307434caffe83d137edf6c22b8a57997365149d08402fa0c6c5 BSL-1.0 libavutil/libm.h origin=boost
+8f1658d6cde70ba06bff2edfdfa92ea7821978e384c2ba05972aceae1cfdbfdc BSL-1.0 libavutil/mathematics.c origin=boost
 6efb27ae4582aea696b41fbbdd1911862e33788918ac7646d06df52aad81ff5e MIT libavfilter/cuda/vector_helpers.cuh
 2f556eda04df95395cba1a6d4e39de2f0e041d449a1c3e8f1023b8ff4ea4c860 MIT libavfilter/vf_scale_cuda.c
 6efb27ae4582aea696b41fbbdd1911862e33788918ac7646d06df52aad81ff5e MIT libavfilter/vf_scale_cuda.cu
@@ -27,9 +32,9 @@ edb9ba2fc02dca5e3bb67334f8a917d91280f36aa4dc5e899f0686d596bbb455 ISC libavutil/x
 
 # Origin named without license text (sha.c also names public domain SHA-1 code; filters.c also names the
 # WTFPL fmtconv plugin as one source of its algorithms). Copied into the notices.
-e59eb3cd358da018c872e1a102bff2e07ff8c8acf3f77a04176a24121ee6a956 BSD-origin-named libavutil/sha.c
-d4d1837ab5263e3b3809d8915f53fc48f1ec673de6fd411383538b64a0786a11 BSD-origin-named libavutil/sha512.c
-cb35e667455449800d1e0e59093bea1f50338508a627e7d9a27451be690b761e BSD-origin-named libswscale/filters.c
+e59eb3cd358da018c872e1a102bff2e07ff8c8acf3f77a04176a24121ee6a956 BSD-origin-named libavutil/sha.c origin=reid-sha1,gifford-sha2
+d4d1837ab5263e3b3809d8915f53fc48f1ec673de6fd411383538b64a0786a11 BSD-origin-named libavutil/sha512.c origin=gifford-sha2
+cb35e667455449800d1e0e59093bea1f50338508a627e7d9a27451be690b761e BSD-origin-named libswscale/filters.c origin=glumpy,fmtconv
 
 # Not license text. Not copied.
 ee8019794b02946de1ddd25ae815f962f5482f466f15670fa8814b0efd31a494 none libavcodec/avcodec.h
@@ -44,3 +49,59 @@ f621f481d22878aef4896e145c34f2554fb2e8e29f97c2b07bb5666e2b719bd9 none libswscale
 28d1be6e099469cd650d44db475a42cfa5daa25df3203081ec4fb83c83c3f56b none libavutil/dovi_meta.h
 a6e0eecda32ecaf68af980c8a92978eafd62c2a8646d2fc8441b91c689228631 none libavcodec/progressframe.h
 628558b30816438bbfb57dde199cce2760095dfaea61b9ba1a8bb18760fe732b none configure
+
+# ---- external headers (notices.py part B), keyed '<project>:*': any file of the project, the hash pins the text
+# Reviewed by reading each block. Families: MIT and SPDX-MIT (the MIT license text is in the notices file of
+# the project: its LICENSE, or the block itself), HP, SGI and HP+SGI (permission notices of the C++
+# standard library headers), BSL-1.0 (Boost; for object code only the reference is needed),
+# Apache-2.0-LLVM (LLVM parallel STL headers of libstdc++: the LLVM exception lets object code that embeds
+# them omit the notice conditions), public-domain (mingw-w64, ReactOS and mingw runtime headers),
+# GPL-exception (stdarg.h of mingw-w64: a GPL 2 header with a special exception for the objects that
+# include it), none (not license text).
+
+# AMF
+23a06b19b6fe0e3d5dc363ac84ac0ea053682071d8c41ec5b67a2d8cc3086996 MIT AMF:*
+73b768061acd511f6ec259b6c7f18f7fa232da04a50b8b549ed13b97531526e5 MIT AMF:*
+7f2db0360230422ce564c42cd6a0ef66aabbc8255ac1d4dbeed48b20ac6558a5 MIT AMF:*
+af750b7b749880f0d0aaf081342a74c4044b075152344216b91647a538c3349a MIT AMF:*
+cad92b2765293026948150e71252896c3e7f0abed1bc16c53783c7b266c530cf MIT AMF:*
+d1add3bfa73a67352dcf2d982c44caa84c55013274578dfeb4f7bc8e38d15fce MIT AMF:*
+
+# libstdc++
+12a68839bae4a9073107dfcb17a0039c1e7dd227969f98604f091f53b8335e5a HP+SGI libstdc++:*
+3545628f8d3a7f2d6321b86e3c58326c4c50ba21a8edf9fb4bcb3a6c4e06ffb7 HP+SGI libstdc++:*
+47856860e9919e5869163d228464214b799145ecfdcaa0029b1cd5f135e88a5a HP+SGI libstdc++:*
+483b78fa1eb5c3a9283ea7c108cfff805a04cc10703a1567972a4be875acc4f4 HP+SGI libstdc++:*
+6343e559852c37d843a72cacd7aec17f21bca0ae6e8fd21ce09ae9adc64909c2 Apache-2.0-LLVM libstdc++:* origin=llvm
+6414e081a798af0994c8ae59a9529423d3220576d393cac6602db912d593b45c SGI libstdc++:*
+6b539033a7c47c3876f7b829a46ef03045be9fca12272b479d6f3284cb957260 SGI libstdc++:*
+7b017c305226217d2693fcade557f0d10d076ef29659ab2c0b42af1f7be7c947 Apache-2.0-LLVM libstdc++:* origin=llvm
+9ad697ef230e5ec1c08ec4fcae27d238923bb1e012f855676daedd6385e87915 Apache-2.0-LLVM libstdc++:* origin=llvm
+ae4b23708976dad2b72642f672830597191741eb8976485e2735307ffe23863f Apache-2.0-LLVM libstdc++:* origin=llvm
+b0822b7ae1e8cb2c836dda2f9322f7de3c550cad665003bc29fb4cc9d67fd30a HP+SGI libstdc++:*
+b12ae49a3a8a0d77c8721436ee7e63542a62e805d8707112a6b1449492d30186 HP+SGI libstdc++:*
+eb636543bf5b83e923da2e209645372df838f51f82b3ce93ccc9e7960e7769f8 BSL-1.0 libstdc++:* origin=boost
+f22deb8b2f059efcae192acb60943a2352dafacf664e2c1a67f7f056c7967732 SGI libstdc++:*
+f82e9793fa507689306a7894e106a066079b38a00a6034bfea783925029f44b2 HP+SGI libstdc++:*
+
+# libvpl
+1e1ca634428a8490e94b00565f210af00ceb673e9fc2e2c5cead1d27cd3b213e SPDX-MIT libvpl:*
+42577605cbc7d0669acc91db9b6995c6859eb89354190dd29efa13f10ecfe972 none libvpl:*
+5725fd0b9133cda3a5e4b3c499b13b5938e4c65990ac9fdff011d5593eb90bab none libvpl:*
+cdd0c7d1ba003ca278fefac02a51c339d7a86a202fb9bb59dd9dc5a6c3774835 SPDX-MIT libvpl:*
+
+# mingw-w64
+51003ff83a1c8282c6f44debdd53fd38984aea19155c5fee926e5d2657efb102 MIT mingw-w64:*
+527492480d71f65ed5b2028e4e2fb0c114c9a8f200f46fe9a7ca1b7b524bf75a public-domain mingw-w64:*
+76fce5c17f96fcf2e33ff7888d65ba4f15b247660e9c9261a1feb4bcdf2a9754 public-domain mingw-w64:*
+7b573742dc4a19a0b623ee1cc5829ea8a5458b1d8eb9d1a57e246eb0760556bb public-domain mingw-w64:*
+98ba7b092adb4e10e3acbc69e39258a943d1c41e1256848daf3751d641ac19ac MIT mingw-w64:*
+a440ab4206c5f83ada424e8152281c614252689399ec78840d11e5e3cfb21eff GPL-exception mingw-w64:*
+a6c09297ff47f15e9caf5facfc339f54bc38ea9df9dd5add97380f42b1b4347e public-domain mingw-w64:*
+d074d1d914b4bea350597960acfd69b97f5f2e9c943cf913718c94238f5c9f79 GPL-exception mingw-w64:*
+e6b714eeacb82bf995e8ffaa5c2cb0e57e183d3d67a6aa633512e135deb69f89 public-domain mingw-w64:*
+
+# nv-codec-headers
+371fa66e4bcb7935e3a5eca87e04be76f3f26a1fd75efe913ead59f1e65d460c none nv-codec-headers:*
+590d291408d1b888f933e64c0d5e1477c90c8365ec7c374de5b4cc8a87ad5a6d MIT nv-codec-headers:*
+b9630b37496d40ac5973c5ed585d0989eac41b1355b9da646a0eccbbd7db9be5 MIT nv-codec-headers:*

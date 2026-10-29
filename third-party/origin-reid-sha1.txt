@@ -1,0 +1,3 @@
+Origin: SHA-1 code by Steve Reid <steve@edmweb.com> (public domain)
+Named by: libavutil/sha.c ("based on public domain SHA-1 code by Steve Reid")
+The original code is in the public domain; there is no license text to reproduce.

@@ -56,10 +56,18 @@ mkdir -p "$PKG/bin" "$PKG/licenses"
 cp "$BINDIR"/*.exe "$BINDIR"/*.dll "$PKG/bin/"
 cp stage/COPYING.LGPLv2.1 "$PKG/LICENSE.txt"
 
-# FFmpeg's own LICENSE.md and the notices of the non-LGPL code compiled into the binaries, generated
-# from the build tree by scripts/notices.py (see build-ffmpeg.sh).
+# FFmpeg's own LICENSE.md, and the notices that scripts/notices.py generated in the FFmpeg step from
+# what the compiler read: the non-LGPL FFmpeg code (with the license texts of the origins it names) and
+# the external headers (nv-codec-headers, AMF, libvpl, libstdc++ and GCC with the GCC Runtime Library
+# Exception, mingw-w64 headers).
 cp stage/FFmpeg-LICENSE.md "$PKG/licenses/FFmpeg-LICENSE.md"
-cp stage/FFmpeg-third-party-notices.txt "$PKG/licenses/FFmpeg-third-party-notices.txt"
+NOTICE_FILES="AMF-LICENSE.txt FFmpeg-third-party-notices.txt libstdc++-notices.txt libvpl-LICENSE.txt \
+  mingw-w64-headers-notices.txt nv-codec-headers-LICENSE.txt"
+test "$(cd stage/notices && ls | tr '\n' ' ')" = "$(echo $NOTICE_FILES | tr ' ' '\n' | sort | tr '\n' ' ')"
+for f in $NOTICE_FILES; do
+  test -s "stage/notices/$f"
+  cp "stage/notices/$f" "$PKG/licenses/$f"
+done
 
 # The mingw-w64 runtime (CRT startup code and libmingwex, including gdtoa and mingw_pformat) is linked
 # statically into every binary. Its notices are the copyright file of the toolchain package.
@@ -72,44 +80,6 @@ MINGW_COPYRIGHT=/usr/share/doc/mingw-w64-x86-64-dev/copyright
   echo
   cat "$MINGW_COPYRIGHT"
 } > "$PKG/licenses/mingw-w64-runtime.txt"
-
-# Licence texts of the third party inputs, taken from the unmodified sources.
-mkdir -p src-tmp
-tar -xzf "sources/$NV_CODEC_HEADERS_FILE" -C src-tmp
-tar -xzf "sources/$AMF_FILE" -C src-tmp
-tar -xzf "sources/$LIBVPL_FILE" -C src-tmp --wildcards "*/LICENSE"
-
-c_comment() { # leading /* ... */ block of a header, comment markers removed
-  awk 'NR==1 && $0 !~ /^\/\*/ {exit} {print} /\*\// {exit}' "$1" \
-    | sed -e '/^ *\*\/$/d' -e 's#^/\*\**##' -e 's#^ \* \{0,1\}##' -e 's#^ \*$##' -e 's# *\*/$##'
-}
-slash_comment() { # leading // block of a header, comment markers removed
-  awk '/^\/\// {print; next} {exit}' "$1" | sed -e 's#^// \{0,1\}##' -e 's#^//$##'
-}
-{
-  echo "nv-codec-headers $NV_CODEC_HEADERS_VERSION, https://github.com/FFmpeg/nv-codec-headers"
-  echo "MIT licence. Headers only; the NVIDIA runtime libraries are loaded from the GPU driver."
-  echo
-  echo "Notice of include/ffnvcodec/nvEncodeAPI.h:"
-  c_comment "src-tmp/nv-codec-headers-$NV_CODEC_HEADERS_VERSION/include/ffnvcodec/nvEncodeAPI.h"
-  echo
-  echo "Notice of include/ffnvcodec/dynlink_loader.h:"
-  c_comment "src-tmp/nv-codec-headers-$NV_CODEC_HEADERS_VERSION/include/ffnvcodec/dynlink_loader.h"
-} > "$PKG/licenses/nv-codec-headers-LICENSE.txt"
-{
-  echo "AMD Advanced Media Framework (AMF) headers $AMF_VERSION, https://github.com/GPUOpen-LibrariesAndSDKs/AMF"
-  echo "MIT licence. Headers only; the AMF runtime is loaded from the GPU driver."
-  echo
-  echo "Notice of AMF/core/Version.h:"
-  slash_comment "src-tmp/amf-headers-v$AMF_VERSION/AMF/core/Version.h"
-} > "$PKG/licenses/AMF-LICENSE.txt"
-{
-  echo "Intel Video Processing Library (libvpl) $LIBVPL_VERSION, https://github.com/intel/libvpl"
-  echo "Linked statically into the FFmpeg libraries (dispatcher only)."
-  echo
-  cat "src-tmp/libvpl-$LIBVPL_VERSION/LICENSE"
-} > "$PKG/licenses/libvpl-LICENSE.txt"
-rm -rf src-tmp
 
 # ---------------------------------------------------------------------------------------------
 # 3. BUILDINFO.txt
@@ -128,8 +98,10 @@ conf="$(cat stage/configuration.txt)"
   echo "                used, unmodified)."
   echo "Distributors:   an application that ships or downloads this build has LGPL obligations of its"
   echo "                own (source next to the binary, about box and EULA wording, no reverse"
-  echo "                engineering ban, DLL names unchanged, a user-replaced FFmpeg must keep working);"
-  echo "                see README.md, \"Obligations of the distributing application\"."
+  echo "                engineering ban, DLL names unchanged, a user-replaced FFmpeg must keep working)."
+  echo "                They are listed in the section \"Obligations of the distributing application\" of"
+  echo "                README.md. This zip does not contain that file; it is in the source archive"
+  echo "                kulisa-ffmpeg-$TAG-src.tar.xz and at https://github.com/PhoenixllGames/kulisa-ffmpeg."
   echo
   # Same splitting as print_buildconf() in fftools/opt_common.c, so this block is what
   # "ffmpeg -buildconf" prints (INDENT: title at 2 spaces, options at 4).
@@ -143,13 +115,15 @@ conf="$(cat stage/configuration.txt)"
   echo "  libvpl $LIBVPL_VERSION (MIT, static dispatcher), SHA-256 $LIBVPL_SHA256"
   echo "  CUDA, AMF and VPL runtimes are loaded from the GPU driver at run time."
   echo
-  echo "Notices in licenses/:"
+  echo "Notices in licenses/ (the generated ones come from the files the compiler read for this build):"
   echo "  FFmpeg-LICENSE.md                 FFmpeg LICENSE.md"
-  echo "  FFmpeg-third-party-notices.txt    non-LGPL code compiled into the binaries: $(sed -n 's/^Licenses: //p' "$PKG/licenses/FFmpeg-third-party-notices.txt")"
-  echo "  mingw-w64-runtime.txt             statically linked mingw-w64 runtime (ZPL-2.1, Lucent gdtoa and others)"
+  echo "  FFmpeg-third-party-notices.txt    non-LGPL code compiled into the binaries: $(sed -n 's/^Licenses: //p' "$PKG/licenses/FFmpeg-third-party-notices.txt"), and the license texts of the origins it names"
   echo "  nv-codec-headers-LICENSE.txt      nv-codec-headers (MIT)"
-  echo "  AMF-LICENSE.txt                   AMF headers (MIT)"
+  echo "  AMF-LICENSE.txt                   AMF headers (MIT, every copyright line of the headers compiled)"
   echo "  libvpl-LICENSE.txt                libvpl (MIT)"
+  echo "  libstdc++-notices.txt             libstdc++ and GCC headers (HP and SGI notices, GCC Runtime Library Exception)"
+  echo "  mingw-w64-headers-notices.txt     mingw-w64 headers (MIT, public domain, Wine LGPL, GPL header with exception)"
+  echo "  mingw-w64-runtime.txt             statically linked mingw-w64 runtime (ZPL-2.1, Lucent gdtoa and others)"
   echo
   echo "Toolchain (Docker image $UBUNTU_IMAGE, apt from snapshot.ubuntu.com $APT_SNAPSHOT):"
   echo "  $(x86_64-w64-mingw32-gcc --version | head -n 1)"
@@ -185,7 +159,7 @@ conf="$(cat stage/configuration.txt)"
 # ---------------------------------------------------------------------------------------------
 ZIP="kulisa-ffmpeg-$TAG-win64.zip"
 SRC="kulisa-ffmpeg-$TAG-src.tar.xz"
-python3 -I "$REPO/scripts/make-zip.py" "$OUT/$ZIP" "$PKG" "$SOURCE_DATE_EPOCH"
+python3 -I -B "$REPO/scripts/make-zip.py" "$OUT/$ZIP" "$PKG" "$SOURCE_DATE_EPOCH"
 
 # Full package list of the toolchain image. A rebuild from a source archive (build.sh passes the list
 # of the archive in) must run on an image with exactly the same packages.
@@ -201,6 +175,8 @@ SRCDIR="$WORK/srcpkg/kulisa-ffmpeg-$TAG-src"
 rm -rf "$WORK/srcpkg"
 mkdir -p "$SRCDIR"
 cp -a "$REPO/." "$SRCDIR/"
+# The scripts run with python -B, so no bytecode may be in the source archive.
+test -z "$(find "$SRCDIR" -name __pycache__ -o -name '*.pyc')"
 cp "$WORK/toolchain-dpkg-l.txt" "$SRCDIR/toolchain-dpkg-l.txt"
 echo "$TAG" > "$SRCDIR/build-tag.txt"
 mkdir -p "$SRCDIR/sources"

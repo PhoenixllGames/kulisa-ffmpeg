@@ -104,15 +104,28 @@ echo "configure ${args[*]}" > "$WORK/logs/configure-line.txt"
 ./configure "${args[@]}" 2>&1 | tee "$WORK/logs/configure-summary.txt"
 cp ffbuild/config.log "$WORK/logs/config.log"
 
+# The dependency files of the objects list the system headers too (-MD instead of -MMD), so that
+# scripts/notices.py sees every external header the compiler read (nv-codec-headers, AMF, libvpl,
+# mingw-w64, GCC). The flag only changes the .d files; the objects are the same.
+sed -i -e '/^CC_DEPFLAGS=/s/-MMD/-MD/' -e '/^AS_DEPFLAGS=/s/-MMD/-MD/' ffbuild/config.mak
+grep -q '^CC_DEPFLAGS=-MD ' ffbuild/config.mak
+grep -q '^AS_DEPFLAGS=-MD ' ffbuild/config.mak
+
 make -j"$(nproc)" 2>&1 | tee "$WORK/logs/make.log" | tail -n 30
 make install DESTDIR="$WORK/stage" 2>&1 | tee "$WORK/logs/make-install.log" | tail -n 10
 
-# Notices of the non-LGPL code compiled into the binaries, generated from the objects of this build.
-# Fails on license-like text that is not reviewed in scripts/notices-allow.txt and on generated
-# intermediates whose inputs it cannot resolve (the release tarball tells sources from generated files).
-python3 -I "$WORK/scripts/notices.py" . "$WORK/sources/$FFMPEG_FILE" "$WORK/scripts/notices-allow.txt" \
-  "$WORK/stage/FFmpeg-third-party-notices.txt" "$WORK/logs/notices-sources.txt" \
-  "Third party notices of the FFmpeg $FFMPEG_VERSION code in Kulisa FFmpeg ${ASSET_TAG:-v$FFMPEG_VERSION-$BUILD_NUMBER}"
+# Notices of the non-LGPL code compiled into the binaries and of the external headers the objects read
+# (FFmpeg, nv-codec-headers, AMF, libvpl, libstdc++, GCC, mingw-w64), generated from the objects of
+# this build and the dependency lists. Fails on license-like text that is not reviewed in
+# scripts/notices-allow.txt and on generated intermediates whose inputs it cannot resolve (the release
+# tarball tells sources from generated files). -B: no bytecode files.
+python3 -I -B "$WORK/scripts/notices.py" \
+  --build-dir . --tarball "$WORK/sources/$FFMPEG_FILE" --allow "$WORK/scripts/notices-allow.txt" \
+  --origins "$WORK/third-party" --versions "$WORK/versions.env" \
+  --vpl-deps "$WORK/logs/libvpl-deps.txt" --vpl-src "$WORK/build/deps/libvpl-$LIBVPL_VERSION" \
+  --gcc-copyright /usr/share/doc/gcc-mingw-w64-base/copyright \
+  --out-dir "$WORK/stage/notices" --log "$WORK/logs/notices-sources.txt" \
+  --title "Third party notices of the FFmpeg $FFMPEG_VERSION code in Kulisa FFmpeg ${ASSET_TAG:-v$FFMPEG_VERSION-$BUILD_NUMBER}"
 cp LICENSE.md "$WORK/stage/FFmpeg-LICENSE.md"
 
 # Text of the configure line exactly as the binary reports it, and the licence file.
@@ -121,5 +134,5 @@ cp COPYING.LGPLv2.1 "$WORK/stage/COPYING.LGPLv2.1"
 grep -n "^#define FFMPEG_LICENSE" config.h | tee "$WORK/logs/license-define.txt"
 
 cd "$WORK"
-rm -rf build/ffmpeg
+rm -rf build/ffmpeg build/deps
 echo "staged: $(find stage -type f | wc -l) files"

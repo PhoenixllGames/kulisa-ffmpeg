@@ -38,6 +38,7 @@ ARG ASSET_TAG
 WORKDIR /work
 COPY versions.env components /work/
 COPY scripts/ /work/scripts/
+COPY third-party/ /work/third-party/
 COPY sources/ /work/sources/
 RUN bash /work/scripts/fetch.sh
 RUN bash /work/scripts/build-deps.sh

@@ -4,6 +4,7 @@
 #   nv-codec-headers  headers and ffnvcodec.pc (MIT)
 #   AMF               headers only (MIT)
 #   libvpl            static Intel dispatcher (MIT)
+# The libvpl source tree and the list of files its objects read are kept for scripts/notices.py.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 WORK="$PWD"
@@ -41,8 +42,14 @@ cmake -S "libvpl-$LIBVPL_VERSION" -B libvpl-build -G Ninja \
 cmake --build libvpl-build 2>&1 | tee "$WORK/logs/libvpl-build.log"
 cmake --install libvpl-build 2>&1 | tee "$WORK/logs/libvpl-install.log"
 
+# Every file the compiler read for the libvpl objects (sources, libvpl headers, libstdc++, GCC and
+# mingw-w64 headers). scripts/notices.py classifies them in the FFmpeg step; the libvpl source tree
+# stays in build/deps until then (build-ffmpeg.sh removes it).
+ninja -C libvpl-build -t deps > "$WORK/logs/libvpl-deps.txt"
+test -s "$WORK/logs/libvpl-deps.txt"
+rm -rf libvpl-build "nv-codec-headers-$NV_CODEC_HEADERS_VERSION" "amf-headers-v$AMF_VERSION"
+
 cd "$WORK"
-rm -rf build/deps
 echo "--- pkg-config view of the dependencies"
 export PKG_CONFIG_PATH="$SYSROOT/lib/pkgconfig" PKG_CONFIG_LIBDIR="$SYSROOT/lib/pkgconfig"
 pkg-config --modversion ffnvcodec vpl
