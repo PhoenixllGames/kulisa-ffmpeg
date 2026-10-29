@@ -10,7 +10,7 @@ mkdir -p sources
 cd sources
 
 fetch() { # file url sha256
-  curl -fsSL --retry 3 --proto '=https' --tlsv1.2 -o "$1" "$2"
+  curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 30 --proto '=https' --tlsv1.2 -o "$1" "$2"
   echo "$3  $1" | sha256sum -c -
 }
 
