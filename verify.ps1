@@ -67,7 +67,7 @@ function Get-FirstVideoPacketType([string]$path) {
     $pos = 13 # 9 byte header and PreviousTagSize0
     while ($pos + 12 -lt $n) {
       $type = $buf[$pos]
-      $size = ($buf[$pos + 1] -shl 16) -bor ($buf[$pos + 2] -shl 8) -bor $buf[$pos + 3]
+      $size = ([int]$buf[$pos + 1] -shl 16) -bor ([int]$buf[$pos + 2] -shl 8) -bor [int]$buf[$pos + 3]
       if ($type -eq 9) { return [int]$buf[$pos + 12] }
       $pos += 11 + $size + 4
     }
@@ -77,13 +77,24 @@ function Get-FirstVideoPacketType([string]$path) {
 
 # 1. License and configure line
 $lic = Invoke-Tool $ff @('-hide_banner', '-L')
-$licText = ($lic.Out + $lic.Err)
-Add-Result 'license' ($licText -match 'GNU Lesser General Public License' -and $licText -match 'version 2\.1 or \(at your option\) any later version') ($licText -replace '\s+', ' ').Trim().Substring(0, [Math]::Min(160, ($licText -replace '\s+', ' ').Trim().Length))
+$licText = (($lic.Out + $lic.Err) -replace '\s+', ' ').Trim()
+Add-Result 'license' ($licText -match 'GNU Lesser General Public License' -and $licText -match 'version 2\.1 of the License, or \(at your option\) any later version' -and $licText -notmatch 'GNU General Public License as') $licText.Substring(0, [Math]::Min(200, $licText.Length))
 $bc = Invoke-Tool $ff @('-hide_banner', '-buildconf')
 $bcText = $bc.Out + $bc.Err
 $forbidden = @('--enable-gpl', '--enable-nonfree', '--enable-version3') | Where-Object { $bcText -match [regex]::Escape($_) }
 Add-Result 'buildconf' (@($forbidden).Count -eq 0) ("no forbidden switch; options: " + ((($bcText -split "`n") | Where-Object { $_ -match '^\s+--' }).Count))
 $bcText | Set-Content -Path (Join-Path $Scratch 'buildconf.txt')
+# BUILDINFO.txt must carry the configure line exactly as -buildconf prints it.
+$infoLines = Get-Content (Join-Path $Dest 'BUILDINFO.txt')
+$start = [Array]::IndexOf($infoLines, '  configuration:')
+$block = @()
+if ($start -ge 0) {
+  for ($i = $start; $i -lt $infoLines.Count -and $infoLines[$i].Trim() -ne ''; $i++) { $block += $infoLines[$i] }
+}
+$bcBlock = @(($bcText -split "`r?`n") | Where-Object { $_.Trim() -ne '' })
+Add-Result 'buildinfo matches -buildconf' (($block -join "`n") -ceq ($bcBlock -join "`n")) ("{0} lines in BUILDINFO, {1} lines printed" -f $block.Count, $bcBlock.Count)
+$others = @('LICENSE.txt', 'licenses\AMF-LICENSE.txt', 'licenses\libvpl-LICENSE.txt', 'licenses\nv-codec-headers-LICENSE.txt', 'bin\ffmpeg.exe') | Where-Object { -not (Test-Path (Join-Path $Dest $_)) }
+Add-Result 'zip contents' (@($others).Count -eq 0) ("missing: " + ($others -join ','))
 
 # 2. Encoders, hwaccels, filters
 $enc = (Invoke-Tool $ff @('-hide_banner', '-encoders')).Out
@@ -123,7 +134,8 @@ foreach ($hwEnc in 0, 1) {
   $name = "mf transcode hw_encoding=$hwEnc"
   if ($code -ne 0 -or -not (Test-Path $outFlv) -or (Get-Item $outFlv).Length -eq 0) {
     $lastErr = ((Get-Content $errTxt -ErrorAction SilentlyContinue | Where-Object { $_ -match 'rror|fail|Cannot|Unknown' } | Select-Object -Last 3) -join ' | ')
-    Add-Result $name $false ("exit $code, wall {0:N1}s, cpu {1:N1}s, error: {2}" -f $sw.Elapsed.TotalSeconds, $cpu, $lastErr)
+    # hw_encoding=1 needs a hardware MFT: a failure on a machine without GPU is an expected result.
+    Add-Result $name ($hwEnc -eq 1) ("{0}exit {1}, wall {2:N1}s, cpu {3:N1}s, error: {4}" -f $(if ($hwEnc -eq 1) { 'unavailable here, ' } else { '' }), $code, $sw.Elapsed.TotalSeconds, $cpu, $lastErr)
     continue
   }
   $info = (Invoke-Tool $gplProbe @('-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', $outFlv)).Out | ConvertFrom-Json

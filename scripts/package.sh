@@ -61,7 +61,7 @@ tar -xzf "sources/$LIBVPL_FILE" -C src-tmp --wildcards "*/LICENSE"
 
 c_comment() { # leading /* ... */ block of a header, comment markers removed
   awk 'NR==1 && $0 !~ /^\/\*/ {exit} {print} /\*\// {exit}' "$1" \
-    | sed -e 's#^/\*\**##' -e 's#^ \* \{0,1\}##' -e 's#^ \*$##' -e 's# *\*/$##'
+    | sed -e '/^ *\*\/$/d' -e 's#^/\*\**##' -e 's#^ \* \{0,1\}##' -e 's#^ \*$##' -e 's# *\*/$##'
 }
 slash_comment() { # leading // block of a header, comment markers removed
   awk '/^\/\// {print; next} {exit}' "$1" | sed -e 's#^// \{0,1\}##' -e 's#^//$##'
@@ -107,8 +107,11 @@ conf="$(cat stage/configuration.txt)"
   echo "                kulisa-ffmpeg-$TAG-src.tar.xz holds the build scripts and every source tarball"
   echo "                used, unmodified)."
   echo
-  echo "configuration:"
-  for o in $conf; do echo "  $o"; done
+  # Same splitting as print_buildconf() in fftools/opt_common.c, so this block is what
+  # "ffmpeg -buildconf" prints (INDENT: title at 2 spaces, options at 4).
+  echo "  configuration:"
+  printf '%s' "$conf" | sed -e 's/ --/~--/g' -e 's/pkg-config~/pkg-config /g' | tr '~' '\n' | sed -e 's/^/    /'
+  echo
   echo
   echo "Third party inputs:"
   echo "  nv-codec-headers $NV_CODEC_HEADERS_VERSION (MIT, headers only), SHA-256 $NV_CODEC_HEADERS_SHA256"

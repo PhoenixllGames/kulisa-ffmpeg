@@ -18,7 +18,8 @@ MUXERS="flv null"
 INDEVS="lavfi"
 
 # Codecs. Stage 7 targets accept H.264 and AAC only, so there are no HEVC or AV1 encoders.
-DECODERS="h264 aac h264_qsv h264_cuvid"
+# The wrapped_avframe decoder is needed by the lavfi input (one-frame encoder probe).
+DECODERS="h264 aac h264_qsv h264_cuvid wrapped_avframe"
 ENCODERS="h264_mf h264_nvenc h264_amf h264_qsv aac wrapped_avframe"
 HWACCELS="h264_d3d11va h264_d3d11va2 h264_dxva2 h264_nvdec"
 PARSERS="h264 aac"
