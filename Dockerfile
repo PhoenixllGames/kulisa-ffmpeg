@@ -37,4 +37,4 @@ COPY . /work/repo
 RUN bash /work/repo/scripts/package.sh
 
 FROM scratch AS artifacts
-COPY --from=package /out/ /
+COPY --from=package /out/ /out/

@@ -19,7 +19,7 @@ cid="$(docker create "kulisa-ffmpeg-artifacts:$TAG" /nonexistent)"
 trap 'docker rm -f "$cid" >/dev/null' EXIT
 rm -rf "$DIST"
 mkdir -p "$DIST"
-docker cp "$cid:/." "$DIST/"
+docker cp "$cid:/out/." "$DIST/"
 
 (cd "$DIST" && sha256sum -c SHA256SUMS)
 echo "assets in $DIST"
