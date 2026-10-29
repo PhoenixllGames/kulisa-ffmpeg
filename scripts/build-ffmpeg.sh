@@ -7,6 +7,8 @@ WORK="$PWD"
 . ./versions.env
 . ./components
 
+# ld and strip stamp the PE headers with this time (SOURCE_DATE_EPOCH) instead of the build time.
+export SOURCE_DATE_EPOCH
 SYSROOT=/usr/x86_64-w64-mingw32
 PREFIX=/opt/kulisa-ffmpeg
 export PKG_CONFIG_PATH="$SYSROOT/lib/pkgconfig" PKG_CONFIG_LIBDIR="$SYSROOT/lib/pkgconfig"
