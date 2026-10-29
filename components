@@ -1,0 +1,32 @@
+# Allow list of the Kulisa FFmpeg build. Sourced by scripts/build-ffmpeg.sh.
+# Everything else is disabled (--disable-autodetect --disable-everything). Adding a component is a
+# one-line change here, followed by a new BUILD_NUMBER in versions.env.
+#
+# Each value is a space separated list. Names that this FFmpeg version does not know are skipped
+# with a warning and listed in the build log and in BUILDINFO.txt.
+
+# Programs (ffplay and ffprobe are not built).
+PROGRAMS="ffmpeg"
+
+# Libraries kept (every other library is disabled).
+LIBRARIES="avutil avcodec avformat avfilter swscale swresample avdevice"
+
+# Container formats and I/O. FFmpeg gets no network: only pipes and files.
+PROTOCOLS="pipe file"
+DEMUXERS="flv live_flv"
+MUXERS="flv null"
+INDEVS="lavfi"
+
+# Codecs. Stage 7 targets accept H.264 and AAC only, so there are no HEVC or AV1 encoders.
+DECODERS="h264 aac h264_qsv h264_cuvid"
+ENCODERS="h264_mf h264_nvenc h264_amf h264_qsv aac wrapped_avframe"
+HWACCELS="h264_d3d11va h264_d3d11va2 h264_dxva2 h264_nvdec"
+PARSERS="h264 aac"
+BSFS="aac_adtstoasc h264_mp4toannexb extract_extradata dump_extradata null"
+
+# Filters. Sources: color, testsrc2, nullsrc, anullsrc, sine.
+FILTERS="scale fps format null anull aresample aformat setpts asetpts trim atrim copy hwupload hwdownload hwmap hwupload_cuda scale_cuda scale_qsv vpp_qsv vpp_amf scale_d3d11 color testsrc2 nullsrc anullsrc sine"
+
+# External libraries and platform APIs (--enable-<name>). The NVIDIA, AMD and Intel runtimes are
+# loaded from the GPU driver at run time; only the Intel dispatcher (libvpl) is linked in, static.
+EXTERNAL="ffnvcodec nvenc nvdec cuvid cuda-llvm amf libvpl mediafoundation d3d11va dxva2 w32threads"
