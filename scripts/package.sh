@@ -53,6 +53,23 @@ mkdir -p "$PKG/bin" "$PKG/licenses"
 cp "$BINDIR"/*.exe "$BINDIR"/*.dll "$PKG/bin/"
 cp stage/COPYING.LGPLv2.1 "$PKG/LICENSE.txt"
 
+# FFmpeg's own LICENSE.md and the notices of the non-LGPL code compiled into the binaries, generated
+# from the build tree by scripts/notices.py (see build-ffmpeg.sh).
+cp stage/FFmpeg-LICENSE.md "$PKG/licenses/FFmpeg-LICENSE.md"
+cp stage/FFmpeg-third-party-notices.txt "$PKG/licenses/FFmpeg-third-party-notices.txt"
+
+# The mingw-w64 runtime (CRT startup code and libmingwex, including gdtoa and mingw_pformat) is linked
+# statically into every binary. Its notices are the copyright file of the toolchain package.
+MINGW_COPYRIGHT=/usr/share/doc/mingw-w64-x86-64-dev/copyright
+{
+  echo "mingw-w64 runtime, $(dpkg-query -W -f='${Package} ${Version}' mingw-w64-x86-64-dev), https://www.mingw-w64.org/"
+  echo "Linked statically into ffmpeg.exe and the FFmpeg DLLs (CRT startup code and libmingwex,"
+  echo "including gdtoa and mingw_pformat). The text below is $MINGW_COPYRIGHT"
+  echo "of the Ubuntu toolchain package, unmodified."
+  echo
+  cat "$MINGW_COPYRIGHT"
+} > "$PKG/licenses/mingw-w64-runtime.txt"
+
 # Licence texts of the third party inputs, taken from the unmodified sources.
 mkdir -p src-tmp
 tar -xzf "sources/$NV_CODEC_HEADERS_FILE" -C src-tmp
@@ -119,6 +136,14 @@ conf="$(cat stage/configuration.txt)"
   echo "  libvpl $LIBVPL_VERSION (MIT, static dispatcher), SHA-256 $LIBVPL_SHA256"
   echo "  CUDA, AMF and VPL runtimes are loaded from the GPU driver at run time."
   echo
+  echo "Notices in licenses/:"
+  echo "  FFmpeg-LICENSE.md                 FFmpeg LICENSE.md"
+  echo "  FFmpeg-third-party-notices.txt    non-LGPL code compiled into the binaries: $(sed -n 's/^Licenses: //p' "$PKG/licenses/FFmpeg-third-party-notices.txt")"
+  echo "  mingw-w64-runtime.txt             statically linked mingw-w64 runtime (ZPL-2.1, Lucent gdtoa and others)"
+  echo "  nv-codec-headers-LICENSE.txt      nv-codec-headers (MIT)"
+  echo "  AMF-LICENSE.txt                   AMF headers (MIT)"
+  echo "  libvpl-LICENSE.txt                libvpl (MIT)"
+  echo
   echo "Toolchain (Docker image $UBUNTU_IMAGE):"
   echo "  $(x86_64-w64-mingw32-gcc --version | head -n 1)"
   echo "  $(x86_64-w64-mingw32-g++ --version | head -n 1)"
@@ -168,7 +193,7 @@ tar -C "$WORK/srcpkg" --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --grou
 # 5. Logs next to the assets (not release assets).
 # ---------------------------------------------------------------------------------------------
 cp logs/configure-summary.txt logs/configure-line.txt logs/skipped-components.txt logs/license-define.txt \
-   logs/config.log "$OUT/logs/"
+   logs/config.log logs/notices-sources.txt "$OUT/logs/"
 cp stage/configuration.txt "$OUT/logs/configuration.txt"
 cp "$PKG/BUILDINFO.txt" "$OUT/logs/BUILDINFO.txt"
 (cd "$PKG" && find . -type f | sort | xargs ls -l) > "$OUT/logs/package-files.txt"

@@ -107,6 +107,13 @@ cp ffbuild/config.log "$WORK/logs/config.log"
 make -j"$(nproc)" 2>&1 | tee "$WORK/logs/make.log" | tail -n 30
 make install DESTDIR="$WORK/stage" 2>&1 | tee "$WORK/logs/make-install.log" | tail -n 10
 
+# Notices of the non-LGPL code compiled into the binaries, generated from the objects of this build.
+# Fails on license text that scripts/notices.py does not recognize.
+python3 -I "$WORK/scripts/notices.py" . "$WORK/stage/FFmpeg-third-party-notices.txt" \
+  "$WORK/logs/notices-sources.txt" \
+  "Third party notices of the FFmpeg $FFMPEG_VERSION code in Kulisa FFmpeg v$FFMPEG_VERSION-$BUILD_NUMBER"
+cp LICENSE.md "$WORK/stage/FFmpeg-LICENSE.md"
+
 # Text of the configure line exactly as the binary reports it, and the licence file.
 sed -n 's/^#define FFMPEG_CONFIGURATION "\(.*\)"$/\1/p' config.h > "$WORK/stage/configuration.txt"
 cp COPYING.LGPLv2.1 "$WORK/stage/COPYING.LGPLv2.1"
