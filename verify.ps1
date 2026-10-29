@@ -196,7 +196,7 @@ Add-Result 'buildconf' ((@($forbidden).Count -eq 0) -and $bcEqual) ("{0} options
 # library is read from "ffmpeg -version"), LICENSE.txt, BUILDINFO.txt and every file of licenses\. A
 # missing file, an extra file and a directory entry all fail the check.
 $ver = Invoke-Tool $ff @('-hide_banner', '-version')
-$libs = @(Get-ComponentList 'LIBRARIES')
+$libs = Get-ComponentList 'LIBRARIES'
 $dlls = @()
 foreach ($lib in $libs) {
   if (($ver.Out + $ver.Err) -match "(?m)^lib$lib\s+(\d+)\.") { $dlls += "bin/$lib-$($Matches[1]).dll" } else { $dlls += "bin/$lib-<major not found>.dll" }
