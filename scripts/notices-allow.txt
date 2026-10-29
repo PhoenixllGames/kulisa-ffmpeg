@@ -1,0 +1,46 @@
+# Reviewed comment blocks with license-like words in the FFmpeg code of this build (scripts/notices.py).
+# Line format: <SHA-256 of the normalized block text> <family> <file>
+# Families: IJG, BSD, BSL-1.0, MIT, ISC, zlib, BSD-origin-named and public-domain-origin-named (blocks that
+# name the license of the code they derive from), none (not license text, for example the API
+# documentation of avcodec_license(); not copied). Blocks of every family except none are copied verbatim
+# into licenses/FFmpeg-third-party-notices.txt.
+# A block that is not listed here, or whose text changed, stops the build. Add an entry only after reading
+# the block (notices.py prints its hash and text) and confirming that its terms allow distribution in the
+# LGPL build with the notice; any other license is a lead decision.
+# Reviewed for FFmpeg 9.0.2 with the allow list in components.
+
+# License text, copied into the notices.
+30d181844cfb48eb66f44110062eb991a84515b58c8d60194a5525a467c0070c BSD libavcodec/aom_film_grain_template.c
+ac88e9fa8ae04c1caf9eeaddc8584f53b445edfc1804e6d1384ad6a67ba94787 BSD libavutil/fixed_dsp.c
+c9405f7d87210d8417f845a9f7a21c756ce045a93074dfd1eb363ddc9c0b73fa BSD libavutil/fixed_dsp.h
+798b57175fee0e401a167f2592d9a402c68336fa2fe4514deb20de0d5c9d98d2 BSD libavutil/softfloat_tables.h
+b60486b44efe79125087442a7bd2904b2b8e33965c84ccecfd9a194d87437913 BSD libavutil/uuid.c
+29428ae86b343307434caffe83d137edf6c22b8a57997365149d08402fa0c6c5 BSL-1.0 libavutil/libm.h
+8f1658d6cde70ba06bff2edfdfa92ea7821978e384c2ba05972aceae1cfdbfdc BSL-1.0 libavutil/mathematics.c
+6efb27ae4582aea696b41fbbdd1911862e33788918ac7646d06df52aad81ff5e MIT libavfilter/cuda/vector_helpers.cuh
+2f556eda04df95395cba1a6d4e39de2f0e041d449a1c3e8f1023b8ff4ea4c860 MIT libavfilter/vf_scale_cuda.c
+6efb27ae4582aea696b41fbbdd1911862e33788918ac7646d06df52aad81ff5e MIT libavfilter/vf_scale_cuda.cu
+6efb27ae4582aea696b41fbbdd1911862e33788918ac7646d06df52aad81ff5e MIT libavfilter/vf_scale_cuda.h
+a987ab17fed4d5e742770f3911bb55b77b3cf98893de093677231924736b223b MIT libavutil/avsscanf.c
+edb9ba2fc02dca5e3bb67334f8a917d91280f36aa4dc5e899f0686d596bbb455 ISC libavutil/x86/x86inc.asm
+784e4dc4c8f7dfb51e06ce1f25beb34648941ab5e5cd5a8028126948fd3d34c6 zlib libavutil/adler32.c
+
+# Origin named without license text (sha.c also names public domain SHA-1 code; filters.c also names the
+# WTFPL fmtconv plugin as one source of its algorithms). Copied into the notices.
+e59eb3cd358da018c872e1a102bff2e07ff8c8acf3f77a04176a24121ee6a956 BSD-origin-named libavutil/sha.c
+d4d1837ab5263e3b3809d8915f53fc48f1ec673de6fd411383538b64a0786a11 BSD-origin-named libavutil/sha512.c
+cb35e667455449800d1e0e59093bea1f50338508a627e7d9a27451be690b761e BSD-origin-named libswscale/filters.c
+
+# Not license text. Not copied.
+ee8019794b02946de1ddd25ae815f962f5482f466f15670fa8814b0efd31a494 none libavcodec/avcodec.h
+2e2dc8845c6ddcf1dc34452098c89288f4d324cd742a8256a194e2aedb003ac5 none libavdevice/avdevice.h
+6dd3ebbce8fcab2e7752ac2c48e1cebf35df7d992ad3c2c682316a9273882aca none libavfilter/avfilter.h
+f0837376620741a437ff72816318c0145bd814e8b6c19a33c1f1d75211beeb11 none libavformat/avformat.h
+060c78a7aaceaccde5e383d66be817a2cf2f3929dc077ad3650e618cc59ff5e5 none libavutil/avutil.h
+8e51674e5568e11e40cf50f851268465fc62d807c34e202204e59aef84d41784 none libswresample/swresample.h
+f621f481d22878aef4896e145c34f2554fb2e8e29f97c2b07bb5666e2b719bd9 none libswscale/swscale.h
+08476da5c0bdeced3a475babbfa954a5f6d7f5025edf15d33339861de62b5258 none fftools/opt_common.h
+2eac8d9d51ea2a74a34028046840d9b32ddef935367dcdb63b1ba838639e7fce none libavcodec/dovi_rpudec.c
+28d1be6e099469cd650d44db475a42cfa5daa25df3203081ec4fb83c83c3f56b none libavutil/dovi_meta.h
+a6e0eecda32ecaf68af980c8a92978eafd62c2a8646d2fc8441b91c689228631 none libavcodec/progressframe.h
+628558b30816438bbfb57dde199cce2760095dfaea61b9ba1a8bb18760fe732b none configure

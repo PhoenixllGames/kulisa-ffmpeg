@@ -108,10 +108,11 @@ make -j"$(nproc)" 2>&1 | tee "$WORK/logs/make.log" | tail -n 30
 make install DESTDIR="$WORK/stage" 2>&1 | tee "$WORK/logs/make-install.log" | tail -n 10
 
 # Notices of the non-LGPL code compiled into the binaries, generated from the objects of this build.
-# Fails on license text that scripts/notices.py does not recognize.
-python3 -I "$WORK/scripts/notices.py" . "$WORK/stage/FFmpeg-third-party-notices.txt" \
-  "$WORK/logs/notices-sources.txt" \
-  "Third party notices of the FFmpeg $FFMPEG_VERSION code in Kulisa FFmpeg v$FFMPEG_VERSION-$BUILD_NUMBER"
+# Fails on license-like text that is not reviewed in scripts/notices-allow.txt and on generated
+# intermediates whose inputs it cannot resolve (the release tarball tells sources from generated files).
+python3 -I "$WORK/scripts/notices.py" . "$WORK/sources/$FFMPEG_FILE" "$WORK/scripts/notices-allow.txt" \
+  "$WORK/stage/FFmpeg-third-party-notices.txt" "$WORK/logs/notices-sources.txt" \
+  "Third party notices of the FFmpeg $FFMPEG_VERSION code in Kulisa FFmpeg ${ASSET_TAG:-v$FFMPEG_VERSION-$BUILD_NUMBER}"
 cp LICENSE.md "$WORK/stage/FFmpeg-LICENSE.md"
 
 # Text of the configure line exactly as the binary reports it, and the licence file.
