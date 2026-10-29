@@ -91,7 +91,15 @@ $block = @()
 if ($start -ge 0) {
   for ($i = $start; $i -lt $infoLines.Count -and $infoLines[$i].Trim() -ne ''; $i++) { $block += $infoLines[$i] }
 }
-$bcBlock = @(($bcText -split "`r?`n") | Where-Object { $_.Trim() -ne '' })
+$bcLines = @(($bcText -split "`r?`n") | Where-Object { $_.Trim() -ne '' })
+$bcStart = [Array]::IndexOf($bcLines, '  configuration:')
+$bcBlock = @()
+if ($bcStart -ge 0) {
+  for ($i = $bcStart; $i -lt $bcLines.Count; $i++) {
+    if ($i -gt $bcStart -and $bcLines[$i] -notmatch '^    --') { break }
+    $bcBlock += $bcLines[$i]
+  }
+}
 Add-Result 'buildinfo matches -buildconf' (($block -join "`n") -ceq ($bcBlock -join "`n")) ("{0} lines in BUILDINFO, {1} lines printed" -f $block.Count, $bcBlock.Count)
 $others = @('LICENSE.txt', 'licenses\AMF-LICENSE.txt', 'licenses\libvpl-LICENSE.txt', 'licenses\nv-codec-headers-LICENSE.txt', 'bin\ffmpeg.exe') | Where-Object { -not (Test-Path (Join-Path $Dest $_)) }
 Add-Result 'zip contents' (@($others).Count -eq 0) ("missing: " + ($others -join ','))
