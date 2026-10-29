@@ -4,11 +4,15 @@
 
 .DESCRIPTION
   Extracts the zip into a new empty directory, then runs the checks of the release process:
-    1. license and configure line (LGPL 2.1 or later, no gpl, nonfree or version3)
-    2. encoders, hwaccels and filters of the allow list
+    1. license and configure line (LGPL 2.1 or later, no gpl, nonfree or version3), zip contents and
+       notices
+    2. encoders, hwaccels and filters of the allow list, compared by exact name
     3. H.264 plus AAC FLV transcode through stdin and stdout with h264_mf (hw_encoding 0 and 1)
-    4. one-frame probe of every GPU encoder (failures are expected without the GPU)
+    4. one-frame probe of every GPU encoder
     5. sizes
+  A GPU probe and the hw_encoding 1 run may fail on a machine without that GPU, but only cleanly: a
+  negative AVERROR exit code and a known FFmpeg error line in stderr. A crash (an NTSTATUS exit code
+  such as 0xC0000005 or 0xC0000135) or an empty stderr fails the check.
   A separate GPL ffmpeg and ffprobe (for example the gyan.dev essentials build) creates the test
   input and inspects the output. It is used only here and is never shipped.
 
@@ -58,6 +62,88 @@ function Invoke-Tool([string]$exe, [string[]]$arguments) {
   [pscustomobject]@{ Out = $outTask.Result; Err = $errTask.Result; Code = $p.ExitCode }
 }
 
+# Names of a "-encoders" or "-filters" listing: the second column of every line after the "------"
+# separator (the first column holds the flags).
+function Get-ListedNames([string]$text) {
+  $names = [System.Collections.Generic.List[string]]::new()
+  $inList = $false
+  foreach ($line in ($text -split "`r?`n")) {
+    if (-not $inList) { if ($line -match '^\s*-{6}\s*$') { $inList = $true }; continue }
+    $cols = $line.Trim() -split '\s+'
+    if ($cols.Count -ge 2) { $names.Add($cols[1]) }
+  }
+  return , $names.ToArray()
+}
+
+# Names of a "-hwaccels" listing: every line after the title line.
+function Get-HwaccelNames([string]$text) {
+  $lines = @(($text -split "`r?`n") | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  return , @($lines | Where-Object { $_ -notmatch ':$' })
+}
+
+# Values of the given allow list variable in the components file.
+function Get-ComponentList([string]$name) {
+  foreach ($line in Get-Content $Components) {
+    if ($line -cmatch "^$name=`"(.*)`"$") { return , @($Matches[1] -split '\s+' | Where-Object { $_ }) }
+  }
+  throw "no $name in $Components"
+}
+
+# AVERROR values FFmpeg can return as its exit code: negative errno values and the FFERRTAG codes.
+function Get-FfErrTag([int]$a, [int]$b, [int]$c, [int]$d) { return -($a -bor ($b -shl 8) -bor ($c -shl 16) -bor ($d -shl 24)) }
+$averrorTags = @(
+  (Get-FfErrTag 0xF8 66 83 70),  # BSF_NOT_FOUND
+  (Get-FfErrTag 66 85 71 33),    # BUG
+  (Get-FfErrTag 66 85 71 32),    # BUG2
+  (Get-FfErrTag 0xF8 68 69 67),  # DECODER_NOT_FOUND
+  (Get-FfErrTag 0xF8 68 69 77),  # DEMUXER_NOT_FOUND
+  (Get-FfErrTag 0xF8 69 78 67),  # ENCODER_NOT_FOUND
+  (Get-FfErrTag 69 79 70 32),    # EOF
+  (Get-FfErrTag 69 88 73 84),    # EXIT
+  (Get-FfErrTag 69 88 84 32),    # EXTERNAL
+  (Get-FfErrTag 0xF8 70 73 76),  # FILTER_NOT_FOUND
+  (Get-FfErrTag 73 78 68 65),    # INVALIDDATA
+  (Get-FfErrTag 0xF8 77 85 88),  # MUXER_NOT_FOUND
+  (Get-FfErrTag 0xF8 79 80 84),  # OPTION_NOT_FOUND
+  (Get-FfErrTag 80 65 87 69),    # PATCHWELCOME
+  (Get-FfErrTag 0xF8 80 82 79),  # PROTOCOL_NOT_FOUND
+  (Get-FfErrTag 0xF8 83 84 82),  # STREAM_NOT_FOUND
+  (Get-FfErrTag 85 78 75 78),    # UNKNOWN
+  -0x2bb2afa8                    # EXPERIMENTAL
+)
+# Error lines of an encoder that cannot open because the GPU, its driver or its runtime is missing.
+$knownErrorLines = @(
+  'Error while opening encoder',
+  'Could not open encoder',
+  'Cannot load ',
+  'failed to open',
+  'Error creating a MFX session',
+  'could not find any MFT',
+  'could not create MFT',
+  'Driver does not support the required nvenc API version',
+  'No capable devices found',
+  'No NVENC capable devices found'
+)
+
+# A clean FFmpeg failure: a negative AVERROR exit code and a known error line in a non-empty stderr.
+# Exit codes from 0xC0000000 up (as unsigned) are NTSTATUS codes of a crash or a loader failure,
+# except the negative errno range -1 to -4095 (0xFFFFF001 to 0xFFFFFFFF), which AVERROR(errno) uses.
+function Test-CleanFailure([int]$code, [string]$stderr) {
+  $unsigned = [BitConverter]::ToUInt32([BitConverter]::GetBytes($code), 0)
+  $isErrno = $code -le -1 -and $code -ge -4095
+  $isTag = $averrorTags -contains $code
+  $hex = '0x{0:X8}' -f $unsigned
+  if ($code -ge 0) { return [pscustomobject]@{ Ok = $false; Why = "exit $code ($hex) is not an error code" } }
+  if (-not ($isErrno -or $isTag)) {
+    $kind = if ($unsigned -ge 0xC0000000) { 'NTSTATUS' } else { 'unknown' }
+    return [pscustomobject]@{ Ok = $false; Why = "exit $code ($hex) is $kind, not an AVERROR code" }
+  }
+  if ([string]::IsNullOrWhiteSpace($stderr)) { return [pscustomobject]@{ Ok = $false; Why = "exit $code ($hex) with an empty stderr" } }
+  $hit = @($knownErrorLines | Where-Object { $stderr.Contains($_) })
+  if ($hit.Count -eq 0) { return [pscustomobject]@{ Ok = $false; Why = "exit $code ($hex) without a known error line" } }
+  return [pscustomobject]@{ Ok = $true; Why = "clean failure, exit $code ($hex), matched '" + ($hit -join "', '") + "'" }
+}
+
 # Walks the FLV tags and returns the AVCPacketType (0 = sequence header) of the first AVC video tag.
 function Get-FirstVideoPacketType([string]$path) {
   $fs = [System.IO.File]::OpenRead($path)
@@ -101,23 +187,38 @@ if ($bcStart -ge 0) {
   }
 }
 Add-Result 'buildinfo matches -buildconf' (($block -join "`n") -ceq ($bcBlock -join "`n")) ("{0} lines in BUILDINFO, {1} lines printed" -f $block.Count, $bcBlock.Count)
-$others = @('LICENSE.txt', 'licenses\AMF-LICENSE.txt', 'licenses\libvpl-LICENSE.txt', 'licenses\nv-codec-headers-LICENSE.txt', 'bin\ffmpeg.exe') | Where-Object { -not (Test-Path (Join-Path $Dest $_)) }
+$others = @('LICENSE.txt', 'BUILDINFO.txt', 'bin\ffmpeg.exe', 'licenses\FFmpeg-LICENSE.md', 'licenses\FFmpeg-third-party-notices.txt',
+  'licenses\mingw-w64-runtime.txt', 'licenses\AMF-LICENSE.txt', 'licenses\libvpl-LICENSE.txt', 'licenses\nv-codec-headers-LICENSE.txt') |
+  Where-Object { -not (Test-Path (Join-Path $Dest $_)) }
 Add-Result 'zip contents' (@($others).Count -eq 0) ("missing: " + ($others -join ','))
+# The notices name their license families; IJG code needs its sentence, the mingw-w64 runtime its
+# ZPL and gdtoa notices.
+$notices = Get-Content -Raw (Join-Path $Dest 'licenses\FFmpeg-third-party-notices.txt') -ErrorAction SilentlyContinue
+$mingw = Get-Content -Raw (Join-Path $Dest 'licenses\mingw-w64-runtime.txt') -ErrorAction SilentlyContinue
+$families = if ($notices -match '(?m)^Licenses: (.*)$') { $Matches[1].Trim() } else { '' }
+$ijgOk = ($families -cnotmatch '\bIJG\b') -or $notices.Contains('This software is based in part on the work of the Independent JPEG Group.')
+$mingwOk = $null -ne $mingw -and $mingw.Contains('License: ZPL-2.1') -and $mingw.Contains('License: Lucent')
+Add-Result 'notices' ($families -ne '' -and $ijgOk -and $mingwOk) ("families: {0}; IJG sentence ok: {1}; mingw-w64 ZPL and Lucent: {2}" -f $families, $ijgOk, $mingwOk)
 
-# 2. Encoders, hwaccels, filters
-$enc = (Invoke-Tool $ff @('-hide_banner', '-encoders')).Out
-$missingEnc = @('h264_mf', 'h264_nvenc', 'h264_amf', 'h264_qsv', 'aac') | Where-Object { $enc -notmatch "\s$_\s" }
-Add-Result 'encoders' (@($missingEnc).Count -eq 0) ("missing: " + ($missingEnc -join ','))
-$hw = (Invoke-Tool $ff @('-hide_banner', '-hwaccels')).Out
-$missingHw = @('d3d11va', 'dxva2', 'cuda', 'qsv') | Where-Object { $hw -notmatch "(?m)^$_\s*$" }
-Add-Result 'hwaccels' (@($missingHw).Count -eq 0) ("missing: " + ($missingHw -join ',') + "; listed: " + (($hw -split "`n" | Where-Object { $_ -and $_ -notmatch ':' } | ForEach-Object { $_.Trim() }) -join ','))
-$filters = (Invoke-Tool $ff @('-hide_banner', '-filters')).Out
-$wanted = @()
-foreach ($line in Get-Content $Components) {
-  if ($line -match '^FILTERS="(.*)"$') { $wanted = $Matches[1] -split '\s+' }
-}
-$missingF = $wanted | Where-Object { $filters -notmatch "\s$_\s" }
-Add-Result 'filters' (@($missingF).Count -eq 0) ("wanted " + $wanted.Count + ", missing: " + ($missingF -join ','))
+# 2. Encoders, hwaccels, filters, compared by exact (case-sensitive) name
+# Encoders: exactly the allow list (h264_mf, h264_nvenc, h264_amf, h264_qsv, aac and wrapped_avframe).
+$encNames = Get-ListedNames (Invoke-Tool $ff @('-hide_banner', '-encoders')).Out
+$wantedEnc = Get-ComponentList 'ENCODERS'
+$missingEnc = @($wantedEnc | Where-Object { $encNames -cnotcontains $_ })
+$extraEnc = @($encNames | Where-Object { $wantedEnc -cnotcontains $_ })
+Add-Result 'encoders' ($missingEnc.Count -eq 0 -and $extraEnc.Count -eq 0) ("listed: {0}; missing: {1}; not in the allow list: {2}" -f ($encNames -join ','), ($missingEnc -join ','), ($extraEnc -join ','))
+# Hwaccels: exactly d3d11va, cuda, qsv and amf.
+$hwNames = Get-HwaccelNames (Invoke-Tool $ff @('-hide_banner', '-hwaccels')).Out
+$wantedHw = @('d3d11va', 'cuda', 'qsv', 'amf')
+$missingHw = @($wantedHw | Where-Object { $hwNames -cnotcontains $_ })
+$extraHw = @($hwNames | Where-Object { $wantedHw -cnotcontains $_ })
+Add-Result 'hwaccels' ($missingHw.Count -eq 0 -and $extraHw.Count -eq 0) ("listed: {0}; missing: {1}; unexpected: {2}" -f ($hwNames -join ','), ($missingHw -join ','), ($extraHw -join ','))
+# Filters: every filter of the allow list (FFmpeg adds the few its command line tool needs).
+$filterNames = Get-ListedNames (Invoke-Tool $ff @('-hide_banner', '-filters')).Out
+$wanted = Get-ComponentList 'FILTERS'
+$missingF = @($wanted | Where-Object { $filterNames -cnotcontains $_ })
+$extraF = @($filterNames | Where-Object { $wanted -cnotcontains $_ })
+Add-Result 'filters' ($missingF.Count -eq 0) ("wanted {0}, listed {1}, missing: {2}; added by FFmpeg: {3}" -f $wanted.Count, $filterNames.Count, ($missingF -join ','), ($extraF -join ','))
 
 # 3. Transcode through stdin and stdout
 $inFlv = Join-Path $Scratch 'input-1080p30.flv'
@@ -141,9 +242,13 @@ foreach ($hwEnc in 0, 1) {
   $code = $p.ExitCode
   $name = "mf transcode hw_encoding=$hwEnc"
   if ($code -ne 0 -or -not (Test-Path $outFlv) -or (Get-Item $outFlv).Length -eq 0) {
-    $lastErr = ((Get-Content $errTxt -ErrorAction SilentlyContinue | Where-Object { $_ -match 'rror|fail|Cannot|Unknown' } | Select-Object -Last 3) -join ' | ')
-    # hw_encoding=1 needs a hardware MFT: a failure on a machine without GPU is an expected result.
-    Add-Result $name ($hwEnc -eq 1) ("{0}exit {1}, wall {2:N1}s, cpu {3:N1}s, error: {4}" -f $(if ($hwEnc -eq 1) { 'unavailable here, ' } else { '' }), $code, $sw.Elapsed.TotalSeconds, $cpu, $lastErr)
+    $errAll = Get-Content -Raw $errTxt -ErrorAction SilentlyContinue
+    if ($null -eq $errAll) { $errAll = '' }
+    $lastErr = ((($errAll -split "`r?`n") | Where-Object { $_ -match 'rror|fail|Cannot|Unknown|could not' } | Select-Object -Last 5) -join ' | ')
+    # hw_encoding=1 needs a hardware MFT: on a machine without one it may fail, but only cleanly.
+    $clean = Test-CleanFailure $code $errAll
+    $ok = ($hwEnc -eq 1) -and $clean.Ok
+    Add-Result $name $ok ("{0}; wall {1:N1}s, cpu {2:N1}s, error: {3}" -f $clean.Why, $sw.Elapsed.TotalSeconds, $cpu, $lastErr)
     continue
   }
   $info = (Invoke-Tool $gplProbe @('-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', $outFlv)).Out | ConvertFrom-Json
@@ -171,7 +276,12 @@ foreach ($hwEnc in 0, 1) {
 foreach ($enc1 in 'h264_nvenc', 'h264_amf', 'h264_qsv') {
   $r = Invoke-Tool $ff @('-hide_banner', '-v', 'error', '-f', 'lavfi', '-i', 'color=black:s=256x256:r=30', '-frames:v', '1', '-c:v', $enc1, '-f', 'null', '-')
   $errLines = (($r.Err -split "`r?`n") | Where-Object { $_.Trim() }) -join ' | '
-  Add-Result "probe $enc1" $true ("exit {0}; {1}" -f $r.Code, $errLines)
+  if ($r.Code -eq 0) {
+    Add-Result "probe $enc1" $true ("encoded one frame, exit 0; {0}" -f $errLines)
+  } else {
+    $clean = Test-CleanFailure $r.Code $r.Err
+    Add-Result "probe $enc1" $clean.Ok ("{0}; {1}" -f $clean.Why, $errLines)
+  }
 }
 
 # 5. Sizes
