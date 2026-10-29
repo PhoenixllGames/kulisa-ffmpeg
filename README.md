@@ -28,7 +28,7 @@ The build scripts in this repository are under the MIT license (`LICENSE`).
 
 Third party inputs, all MIT:
 
-- nv-codec-headers 13.1.15.0 (headers only; the NVIDIA runtime is loaded from the driver)
+- nv-codec-headers 11.1.5.4 (headers only; the NVIDIA runtime is loaded from the driver)
 - AMD AMF headers 1.5.3 (headers only; the AMF runtime is loaded from the driver)
 - Intel libvpl 2.17.0 (static dispatcher linked into the FFmpeg libraries; the Intel runtime is
   loaded from the driver)
@@ -41,7 +41,7 @@ party inputs are in `licenses/` inside the zip.
 | Component | Version |
 |---|---|
 | FFmpeg | 9.0.2 (release tarball, GPG verified, SHA-256 pinned) |
-| nv-codec-headers | 13.1.15.0 |
+| nv-codec-headers | 11.1.5.4 |
 | AMF headers | 1.5.3 |
 | libvpl | 2.17.0 |
 | Build image | `ubuntu:24.04`, pinned by digest in `versions.env` |
@@ -54,12 +54,20 @@ is never rebuilt; a change of any input gets the next build number.
 
 ## NVENC driver requirement
 
-The NVENC API level of the nv-codec-headers decides the minimum NVIDIA driver. Headers 13.1.15.0
-require a Windows driver 610.0 or newer; with an older driver `h264_nvenc` fails to open and reports
-that the driver does not support the required nvenc API version. Older header tags accepted by this
-FFmpeg version and their minimum Windows drivers: 13.0.19.1 needs 570.0, 12.2.72.0 needs 551.76,
-12.1.14.1 needs 531.61. Changing `NV_CODEC_HEADERS_*` in `versions.env` and the build number is the
-only change needed.
+The NVENC API level of the nv-codec-headers decides the minimum NVIDIA driver. This build uses
+nv-codec-headers 11.1.5.4 (Video Codec SDK 11.1), which needs a Windows driver 471.41 or newer; with
+an older driver `h264_nvenc` fails to open and reports that the driver does not support the required
+nvenc API version. NVIDIA keeps the NVENC API binary backward compatible, so current drivers work as
+well.
+
+FFmpeg 9.0.2 configure accepts three ranges of ffnvcodec: 11.1.5.3 up to below 12.0, 12.0.16.1 up to
+below 12.1, and 12.1.14.0 or newer. The 11.1 headers keep everything the 8-bit 4:2:0 H.264 transcode
+uses (CBR and VBR rate control, `-g`, `-bf`, presets p1 to p7, tune, profiles baseline, main and
+high), plus `h264_cuvid`, `h264_nvdec`, `hwupload_cuda` and `scale_cuda`. Newer headers add H.264
+features this build does not use (high10, high422, `tf_level`, `lookahead_level`, timecode SEI) and
+raise the minimum driver: 12.0.16.x needs 522.25, 12.1.14.x needs 531.61, 12.2.72.0 needs 551.76,
+13.0.19.1 needs 570.0, 13.1.15.0 needs 610.0. Changing `NV_CODEC_HEADERS_*` in `versions.env` and the
+build number is the only change needed.
 
 ## Contents of the build
 
