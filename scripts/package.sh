@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Checks the built binaries and writes the release assets to /out:
 #   kulisa-ffmpeg-<tag>-win64.zip, kulisa-ffmpeg-<tag>-src.tar.xz, SHA256SUMS, logs/
+# /work/repo is the committed tree that build.sh passed in (repo.tar), so the source archive never
+# contains uncommitted files.
 set -euo pipefail
 WORK=/work
 cd "$WORK"
@@ -144,7 +146,7 @@ conf="$(cat stage/configuration.txt)"
   echo "  AMF-LICENSE.txt                   AMF headers (MIT)"
   echo "  libvpl-LICENSE.txt                libvpl (MIT)"
   echo
-  echo "Toolchain (Docker image $UBUNTU_IMAGE):"
+  echo "Toolchain (Docker image $UBUNTU_IMAGE, apt from snapshot.ubuntu.com $APT_SNAPSHOT):"
   echo "  $(x86_64-w64-mingw32-gcc --version | head -n 1)"
   echo "  $(x86_64-w64-mingw32-g++ --version | head -n 1)"
   echo "  $(x86_64-w64-mingw32-ld --version | head -n 1)"
@@ -152,10 +154,14 @@ conf="$(cat stage/configuration.txt)"
   echo "  $(nasm --version)"
   echo "  $(cmake --version | head -n 1)"
   echo "  pkg-config $(pkg-config --version)"
+  echo "  $(python3 --version) (zip writer)"
+  echo "  $(tar --version | head -n 1), $(xz --version | head -n 1) (source archive)"
   for p in gcc-mingw-w64-x86-64-win32 g++-mingw-w64-x86-64-win32 binutils-mingw-w64-x86-64 \
-           mingw-w64-x86-64-dev clang-18 nasm cmake ninja-build; do
+           mingw-w64-x86-64-dev mingw-w64-common clang-18 llvm-18 nasm cmake ninja-build pkgconf \
+           python3.12 zlib1g xz-utils liblzma5 tar gnupg; do
     echo "  deb: $(pkgver "$p")"
   done
+  echo "  The full package list of the toolchain image is toolchain-dpkg-l.txt in the source archive."
   echo "  The mingw-w64 C runtime, libgcc and libstdc++ are linked statically (GCC Runtime Library"
   echo "  Exception applies to libgcc and libstdc++)."
   echo
@@ -176,11 +182,21 @@ ZIP="kulisa-ffmpeg-$TAG-win64.zip"
 SRC="kulisa-ffmpeg-$TAG-src.tar.xz"
 python3 -I "$REPO/scripts/make-zip.py" "$OUT/$ZIP" "$PKG" "$SOURCE_DATE_EPOCH"
 
+# Full package list of the toolchain image. A rebuild from a source archive (build.sh passes the list
+# of the archive in) must run on an image with exactly the same packages.
+COLUMNS=250 dpkg -l > "$WORK/toolchain-dpkg-l.txt"
+if [ -s "$WORK/expected-toolchain-dpkg-l.txt" ]; then
+  if ! diff -u "$WORK/expected-toolchain-dpkg-l.txt" "$WORK/toolchain-dpkg-l.txt"; then
+    echo "toolchain packages differ from toolchain-dpkg-l.txt of the source archive" >&2
+    exit 1
+  fi
+fi
+
 SRCDIR="$WORK/srcpkg/kulisa-ffmpeg-$TAG-src"
 rm -rf "$WORK/srcpkg"
 mkdir -p "$SRCDIR"
 cp -a "$REPO/." "$SRCDIR/"
-rm -rf "$SRCDIR/.git" "$SRCDIR/dist"
+cp "$WORK/toolchain-dpkg-l.txt" "$SRCDIR/toolchain-dpkg-l.txt"
 mkdir -p "$SRCDIR/sources"
 cp "sources/$FFMPEG_FILE" "sources/$FFMPEG_SIG_FILE" "sources/$FFMPEG_KEY_FILE" \
    "sources/$NV_CODEC_HEADERS_FILE" "sources/$AMF_FILE" "sources/$LIBVPL_FILE" "$SRCDIR/sources/"
@@ -194,6 +210,7 @@ tar -C "$WORK/srcpkg" --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --grou
 # ---------------------------------------------------------------------------------------------
 cp logs/configure-summary.txt logs/configure-line.txt logs/skipped-components.txt logs/license-define.txt \
    logs/config.log logs/notices-sources.txt "$OUT/logs/"
+cp "$WORK/toolchain-dpkg-l.txt" "$OUT/logs/toolchain-dpkg-l.txt"
 cp stage/configuration.txt "$OUT/logs/configuration.txt"
 cp "$PKG/BUILDINFO.txt" "$OUT/logs/BUILDINFO.txt"
 (cd "$PKG" && find . -type f | sort | xargs ls -l) > "$OUT/logs/package-files.txt"

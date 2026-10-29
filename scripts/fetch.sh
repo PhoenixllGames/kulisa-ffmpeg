@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Downloads every source into /work/sources and verifies it. Any mismatch stops the build.
-#   - SHA-256 of every file against versions.env
-#   - GPG signature of the FFmpeg tarball against the pinned release key fingerprint
+# Puts every source into /work/sources and verifies it. Any mismatch stops the build.
+#   - a file that is already there (pre-seeded, for example from the sources/ directory of a source
+#     archive) is used as is; any other file is downloaded from its URL in versions.env
+#   - SHA-256 of every file against versions.env, in both cases
+#   - GPG signature of the FFmpeg tarball against the pinned release key fingerprint, in both cases
+# With every file pre-seeded the build needs no network.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . ./versions.env
@@ -10,7 +13,12 @@ mkdir -p sources
 cd sources
 
 fetch() { # file url sha256
-  curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 30 --proto '=https' --tlsv1.2 -o "$1" "$2"
+  if [ -f "$1" ]; then
+    echo "pre-seeded: $1"
+  else
+    curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 --connect-timeout 30 --proto '=https' --tlsv1.2 -o "$1.part" "$2"
+    mv "$1.part" "$1"
+  fi
   echo "$3  $1" | sha256sum -c -
 }
 
