@@ -19,8 +19,13 @@ cd build/ffmpeg
 
 # Components this FFmpeg version does not know are skipped and reported.
 : > "$WORK/logs/skipped-components.txt"
+declare -A known_cache
 known() { # kind-plural name
-  ./configure "--list-$1" | tr -s ' \t' '\n\n' | grep -qx -- "$2"
+  if [ -z "${known_cache[$1]+x}" ]; then
+    known_cache[$1]="$(./configure "--list-$1" | tr -s ' \t' '\n\n')"
+  fi
+  # A here-string keeps grep -q from closing a pipe early under pipefail.
+  grep -qx -- "$2" <<<"${known_cache[$1]}"
 }
 select_known() { # kind-plural names...
   local kind="$1" out=() n
