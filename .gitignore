@@ -1,3 +1,6 @@
 dist/
+__pycache__/
+*.pyc
+
 # Pre-seeded source tarballs (scripts/fetch.sh verifies them like downloads).
 sources/
