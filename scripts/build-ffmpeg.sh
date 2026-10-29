@@ -88,6 +88,7 @@ list="$(select_known bsfs $BSFS)";            [ -n "$list" ] && args+=("--enable
 list="$(select_known filters $FILTERS)";      [ -n "$list" ] && args+=("--enable-filter=$list")
 
 for e in $EXTERNAL; do args+=("--enable-$e"); done
+for d in $DISABLE; do args+=("--disable-$d"); done
 
 # Hard stop on any licence switch that would change the LGPL status.
 for a in "${args[@]}"; do

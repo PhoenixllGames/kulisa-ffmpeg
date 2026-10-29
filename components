@@ -11,8 +11,9 @@ PROGRAMS="ffmpeg"
 # Libraries kept (every other library is disabled).
 LIBRARIES="avutil avcodec avformat avfilter swscale swresample avdevice"
 
-# Container formats and I/O. FFmpeg gets no network: only pipes and files.
-PROTOCOLS="pipe file"
+# Container formats and I/O. FFmpeg gets no network and no file access: pipes only (the encoder
+# probe writes to "-f null -", which is the pipe protocol as well).
+PROTOCOLS="pipe"
 DEMUXERS="flv live_flv"
 MUXERS="flv null"
 INDEVS="lavfi"
@@ -21,13 +22,20 @@ INDEVS="lavfi"
 # The wrapped_avframe decoder is needed by the lavfi input (one-frame encoder probe).
 DECODERS="h264 aac h264_qsv h264_cuvid wrapped_avframe"
 ENCODERS="h264_mf h264_nvenc h264_amf h264_qsv aac wrapped_avframe"
-HWACCELS="h264_d3d11va h264_d3d11va2 h264_dxva2 h264_nvdec"
+# D3D11VA covers Windows 10 and 11; there is no DXVA2 (D3D9) decode path.
+HWACCELS="h264_d3d11va h264_d3d11va2 h264_nvdec"
 PARSERS="h264 aac"
-BSFS="aac_adtstoasc h264_mp4toannexb extract_extradata dump_extradata null"
+BSFS="aac_adtstoasc h264_mp4toannexb extract_extradata null"
 
 # Filters. Sources: color, testsrc2, nullsrc, anullsrc, sine.
 FILTERS="scale fps format null anull aresample aformat setpts asetpts trim atrim copy hwupload hwdownload hwmap hwupload_cuda scale_cuda scale_qsv vpp_qsv vpp_amf scale_d3d11 color testsrc2 nullsrc anullsrc sine"
 
 # External libraries and platform APIs (--enable-<name>). The NVIDIA, AMD and Intel runtimes are
 # loaded from the GPU driver at run time; only the Intel dispatcher (libvpl) is linked in, static.
-EXTERNAL="ffnvcodec nvenc nvdec cuvid cuda-llvm amf libvpl mediafoundation d3d11va dxva2 w32threads"
+EXTERNAL="ffnvcodec nvenc nvdec cuvid cuda-llvm amf libvpl mediafoundation d3d11va w32threads"
+
+# Parts that configure enables by default and that no pipeline here needs (--disable-<name>).
+# faan: the floating point AAN DCT. Its faandct option is the only thing that selects fdctdsp in this
+# build, which compiles the IJG forward DCT (jfdctfst.c, jfdctint.c). idctdsp stays: the h264 decoder
+# suggests error_resilience, which selects me_cmp, which selects idctdsp (with the IJG jrevdct.c).
+DISABLE="faan"
