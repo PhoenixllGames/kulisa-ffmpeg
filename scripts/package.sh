@@ -10,7 +10,8 @@ REPO="$WORK/repo"
 . "$REPO/versions.env"
 . "$REPO/components"
 
-TAG="v${FFMPEG_VERSION}-${BUILD_NUMBER}"
+# Asset name from build.sh: the release tag, or <tag>-dev-<commit> for a --dev build.
+TAG="${ASSET_TAG:-v${FFMPEG_VERSION}-${BUILD_NUMBER}}"
 BINDIR="stage/opt/kulisa-ffmpeg/bin"
 OBJDUMP=x86_64-w64-mingw32-objdump
 OUT=/out
@@ -125,6 +126,10 @@ conf="$(cat stage/configuration.txt)"
   echo "Source code:    https://github.com/PhoenixllGames/kulisa-ffmpeg (the release asset"
   echo "                kulisa-ffmpeg-$TAG-src.tar.xz holds the build scripts and every source tarball"
   echo "                used, unmodified)."
+  echo "Distributors:   an application that ships or downloads this build has LGPL obligations of its"
+  echo "                own (source next to the binary, about box and EULA wording, no reverse"
+  echo "                engineering ban, DLL names unchanged, a user-replaced FFmpeg must keep working);"
+  echo "                see README.md, \"Obligations of the distributing application\"."
   echo
   # Same splitting as print_buildconf() in fftools/opt_common.c, so this block is what
   # "ffmpeg -buildconf" prints (INDENT: title at 2 spaces, options at 4).
@@ -197,6 +202,7 @@ rm -rf "$WORK/srcpkg"
 mkdir -p "$SRCDIR"
 cp -a "$REPO/." "$SRCDIR/"
 cp "$WORK/toolchain-dpkg-l.txt" "$SRCDIR/toolchain-dpkg-l.txt"
+echo "$TAG" > "$SRCDIR/build-tag.txt"
 mkdir -p "$SRCDIR/sources"
 cp "sources/$FFMPEG_FILE" "sources/$FFMPEG_SIG_FILE" "sources/$FFMPEG_KEY_FILE" \
    "sources/$NV_CODEC_HEADERS_FILE" "sources/$AMF_FILE" "sources/$LIBVPL_FILE" "$SRCDIR/sources/"

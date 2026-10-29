@@ -33,6 +33,8 @@ RUN test -n "$APT_SNAPSHOT" \
  && rm -rf /var/lib/apt/lists/*
 
 FROM ${TOOLCHAIN_IMAGE} AS build
+# Asset name: the release tag, or <tag>-dev-<commit> for build.sh --dev.
+ARG ASSET_TAG
 WORKDIR /work
 COPY versions.env components /work/
 COPY scripts/ /work/scripts/
@@ -42,6 +44,7 @@ RUN bash /work/scripts/build-deps.sh
 RUN bash /work/scripts/build-ffmpeg.sh
 
 FROM ${TOOLCHAIN_IMAGE} AS package
+ARG ASSET_TAG
 WORKDIR /work
 COPY --from=build /work/sources /work/sources
 COPY --from=build /work/stage /work/stage
