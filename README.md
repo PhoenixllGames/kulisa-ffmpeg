@@ -73,17 +73,21 @@ headers) or mingw-w64. A file of no project stops the build.
 Every comment block of those files is classified. The standard header of the project needs no copy
 (the FFmpeg LGPL 2.1 or later header; the GPL 3 header with the GCC Runtime Library Exception for
 libstdc++ and GCC, whose text is in `libstdc++-notices.txt`; the mingw-w64 and Wine headers, whose
-copyright lines go into the notices of that project). GPL text stops the build, unless its block is
-reviewed as family `GPL-exception`. Every other block with license-like words (`licen`, `governed by`,
-`warranty`, `public domain`, `patent`, `WTFPL`, `Unlicense`, `Creative Commons`, `all rights
-reserved` and more) must be listed in `scripts/notices-allow.txt` with its file (for an external
-project `<project>:*`, any file of it) and its reviewed family, with the SHA-256 of its text. Listed
-blocks of a license family are copied once per distinct text, together with the files that carry it
-(verbatim for FFmpeg); blocks reviewed as not license text (such as the `avcodec_license()`
-documentation) are not copied. A block that is not listed, or whose text changed, stops the build, so
-a new FFmpeg version, a new toolchain package or a new component re-confirms every block. The list of
-scanned files, with the inputs of each generated file and the project of each external file, is
-`logs/notices-sources.txt` next to the assets.
+copyright lines go into the notices of that project). The GCC header is standard only in a file that
+also contains the Runtime Library Exception sentence. GPL text, which includes a GPL 3 grant of a GCC
+file without that sentence, stops the build, unless its block is reviewed as family `GPL-exception`.
+Every other block with license-like words (`licen`, `governed by`, `warranty`, `public domain`,
+`patent`, `WTFPL`, `Unlicense`, `Creative Commons`, `all rights reserved` and more) must be listed in
+`scripts/notices-allow.txt` with its file (for an external project `<project>:*`, any file of it) and
+its reviewed family, with the SHA-256 of its text. The text of a block is the block together with the
+comment blocks right before it (only blank lines between) that carry copyright lines, so the copyright
+holders named above a license (for example those of the Boost code in the libstdc++ `shared_ptr.h`)
+are copied, hashed and reviewed with it. Listed blocks of a license family are copied once per
+distinct text, together with the files that carry it (verbatim for FFmpeg); blocks reviewed as not
+license text (such as the `avcodec_license()` documentation) are not copied. A block that is not
+listed, or whose text changed, stops the build, so a new FFmpeg version, a new toolchain package or a
+new component re-confirms every block. The list of scanned files, with the inputs of each generated
+file and the project of each external file, is `logs/notices-sources.txt` next to the assets.
 
 Blocks that name the project they derive from carry an `origin=<name>` in the allow list; the license
 text of that project is the file `third-party/origin-<name>.txt` of this repository (copied from its
@@ -306,7 +310,8 @@ give byte-identical assets.
   `BUILDINFO.txt`, with no gpl, nonfree or version3), the exact file set of the zip (`bin/ffmpeg.exe`,
   one DLL per library, `LICENSE.txt`, `BUILDINFO.txt` and every file of `licenses/`; a missing or an
   extra file fails) and the notices (the IJG sentence when IJG code is listed, the mingw-w64 ZPL and
-  Lucent notices, the origin texts, the libstdc++ notices with the GCC Runtime Library Exception);
+  Lucent notices, the origin texts, the libstdc++ notices with the Boost copyright holders and the GCC
+  Runtime Library Exception);
 - the encoders (exactly the allow list), the hwaccels (exactly d3d11va, cuda, qsv and amf) and the
   filters of the allow list, compared by exact name from the name column of each listing;
 - an FLV transcode through standard input and output with `h264_mf` (`-hw_encoding 0` and `1`);

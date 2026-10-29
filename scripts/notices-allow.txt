@@ -12,6 +12,8 @@
 # A block that is not listed here, or whose text changed, stops the build. Add an entry only after reading
 # the block (notices.py prints its hash and text) and confirming that its terms allow distribution in the
 # LGPL build with the notice; any other license is a lead decision.
+# The hash covers the block together with the comment blocks right before it that carry copyright lines
+# (only blank lines between), which are copied with it: the copyright holders above a license.
 # Reviewed for FFmpeg 9.0.2 with the allow list in components.
 
 # License text, copied into the notices.
@@ -80,7 +82,7 @@ d1add3bfa73a67352dcf2d982c44caa84c55013274578dfeb4f7bc8e38d15fce MIT AMF:*
 ae4b23708976dad2b72642f672830597191741eb8976485e2735307ffe23863f Apache-2.0-LLVM libstdc++:* origin=llvm
 b0822b7ae1e8cb2c836dda2f9322f7de3c550cad665003bc29fb4cc9d67fd30a HP+SGI libstdc++:*
 b12ae49a3a8a0d77c8721436ee7e63542a62e805d8707112a6b1449492d30186 HP+SGI libstdc++:*
-eb636543bf5b83e923da2e209645372df838f51f82b3ce93ccc9e7960e7769f8 BSL-1.0 libstdc++:* origin=boost
+ee763959d3a770143b75a8218dfaf5fd40335b73366bf9804be0f9aa91725eb8 BSL-1.0 libstdc++:* origin=boost
 f22deb8b2f059efcae192acb60943a2352dafacf664e2c1a67f7f056c7967732 SGI libstdc++:*
 f82e9793fa507689306a7894e106a066079b38a00a6034bfea783925029f44b2 HP+SGI libstdc++:*
 

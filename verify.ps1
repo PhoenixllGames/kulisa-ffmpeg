@@ -213,8 +213,9 @@ $missingFiles = @($expectedFiles | Where-Object { $zipNames -cnotcontains $_ })
 $extraFiles = @($zipNames | Where-Object { $expectedFiles -cnotcontains $_ })
 Add-Result 'zip contents' ($missingFiles.Count -eq 0 -and $extraFiles.Count -eq 0) ("{0} files expected, {1} in the zip; missing: {2}; extra: {3}" -f $expectedFiles.Count, $zipNames.Count, ($missingFiles -join ','), ($extraFiles -join ','))
 # The notices name their license families; IJG code needs its sentence, the mingw-w64 runtime its
-# ZPL and gdtoa notices, the libvpl dispatcher's libstdc++ headers their HP and SGI notices and the GCC
-# Runtime Library Exception, and the FFmpeg blocks that name an origin the license text of that origin.
+# ZPL and gdtoa notices, the libvpl dispatcher's libstdc++ headers their HP and SGI notices, the Boost
+# copyright holders and the GCC Runtime Library Exception, and the FFmpeg blocks that name an origin the
+# license text of that origin.
 function Get-NoticeText([string]$name) {
   $path = Join-Path $Dest ('licenses\' + $name)
   if (Test-Path $path) { return Get-Content -Raw $path } else { return '' }
@@ -227,9 +228,9 @@ $families = if ($notices -match '(?m)^Licenses: (.*)$') { $Matches[1].Trim() } e
 $ijgOk = ($families -cnotmatch '\bIJG\b') -or $notices.Contains('This software is based in part on the work of the Independent JPEG Group.')
 $mingwOk = $mingw.Contains('License: ZPL-2.1') -and $mingw.Contains('License: Lucent')
 $originsOk = $notices.Contains('Aaron D. Gifford') -and $notices.Contains('Nicolas P. Rougier') -and $notices.Contains('DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE') -and $notices.Contains('Boost Software License - Version 1.0')
-$stdcxxOk = $stdcxx.Contains('Hewlett-Packard') -and $stdcxx.Contains('Silicon Graphics') -and $stdcxx.Contains('GCC RUNTIME LIBRARY EXCEPTION')
+$stdcxxOk = $stdcxx.Contains('Hewlett-Packard') -and $stdcxx.Contains('Silicon Graphics') -and $stdcxx.Contains('GCC RUNTIME LIBRARY EXCEPTION') -and $stdcxx.Contains('Peter Dimov') -and $stdcxx.Contains('Multi Media Ltd.') -and $stdcxx.Contains('Greg Colvin')
 $amfOk = $amf.Contains('Advanced Micro Devices') -and $amf.Contains('Permission is hereby granted')
-Add-Result 'notices' ($families -ne '' -and $ijgOk -and $mingwOk -and $originsOk -and $stdcxxOk -and $amfOk) ("families: {0}; IJG sentence ok: {1}; mingw-w64 ZPL and Lucent: {2}; origin texts: {3}; libstdc++ HP, SGI and runtime exception: {4}; AMF: {5}" -f $families, $ijgOk, $mingwOk, $originsOk, $stdcxxOk, $amfOk)
+Add-Result 'notices' ($families -ne '' -and $ijgOk -and $mingwOk -and $originsOk -and $stdcxxOk -and $amfOk) ("families: {0}; IJG sentence ok: {1}; mingw-w64 ZPL and Lucent: {2}; origin texts: {3}; libstdc++ HP, SGI, Boost holders and runtime exception: {4}; AMF: {5}" -f $families, $ijgOk, $mingwOk, $originsOk, $stdcxxOk, $amfOk)
 
 # 2. Encoders, hwaccels, filters, compared by exact (case-sensitive) name
 # Encoders: exactly the allow list (h264_mf, h264_nvenc, h264_amf, h264_qsv, aac and wrapped_avframe).

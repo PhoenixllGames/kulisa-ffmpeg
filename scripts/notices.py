@@ -27,6 +27,10 @@ Part A. FFmpeg code (the in-tree build, --build-dir).
        changed, and a listed block whose text does not match the pattern of its family stop the build,
        so a new FFmpeg version re-confirms every block. Listed entries that the build no longer uses
        are reported in the log.
+     - Copyright holders: a license block is copied, hashed and reviewed together with the comment
+       blocks of the same file that sit right before it (only blank lines between), carry copyright
+       lines and have no license-like words, because a line comment block ends at a blank line and the
+       holders of code taken from another project are often named in such blocks above the license.
 3. Origins. A block of family BSD-origin-named or public-domain-origin-named only names the project it
    derives from, and a block of another family may name its origin as well (Boost, LLVM). The allow-list
    line names the origins (origin=a,b; required for the two origin families); the license text of each
@@ -41,11 +45,14 @@ Part B. External headers and sources: everything the compiler read that is not F
    project stops the build. The comment blocks are classified as above, with the allow list keyed by
    "<project>:<path>" or "<project>:*" (any file of the project; the hash still pins the text), and a
    standard header per project that needs no copy (GPL 3 with the GCC Runtime Library Exception for
-   libstdc++ and gcc, the mingw-w64 runtime header). Per project, one notices file in --out-dir groups
-   the distinct blocks (each once, with the files that carry it) and the copyright lines of the
-   standard headers.
+   libstdc++ and gcc, the mingw-w64 runtime header). The GCC header is standard only when the file also
+   holds the Runtime Library Exception sentence; a GPL grant in a file without it is GPL text and stops
+   the build unless its blocks are listed as family GPL-exception. Per project, one notices file in
+   --out-dir groups the distinct blocks (each once, with the files that carry it) and the copyright
+   lines of the standard headers.
 """
 import argparse
+import bisect
 import glob
 import hashlib
 import os
@@ -95,6 +102,11 @@ MINGW_PARTS = [
     r"this file has no copyright assigned and is placed in the public domain\.?",
 ] + LGPL_PARTS
 STD_PARTS = {"FFmpeg": LGPL_PARTS, "libstdc++": GCC_PARTS, "gcc": GCC_PARTS, "mingw-w64": MINGW_PARTS}
+# Sentence that a file of the project must contain for its GPL 3 grant to count as the standard header
+# (see file_blocks). A GPL 3 grant of a GCC runtime file without the Runtime Library Exception sentence is
+# plain GPL and is not standard.
+STD_NEED = {"libstdc++": GCC_PARTS[3], "gcc": GCC_PARTS[3]}
+COPYRIGHT_RX = re.compile(r"copyright|\(c\)\s*\d{4}", re.I)
 
 # Words that make a block (after the standard parts are removed) need a reviewed allow-list entry.
 # Broad on purpose: "licen" covers license, licence, licensed, licensing; the rest catches license text
@@ -200,29 +212,39 @@ def read_text(path):
 
 
 def comment_blocks(text, ext):
-    """Comment blocks of a file as lists of raw lines (comment markers kept, for verbatim copies)."""
+    """Comment blocks of a file as (first line index, raw lines) pairs (comment markers kept, for verbatim
+    copies)."""
+    offsets, pos = [], 0
+    for line in text.splitlines(keepends=True):
+        offsets.append(pos)
+        pos += len(line)
+
     def line_blocks(prefix):
-        blocks, cur = [], []
-        for line in text.splitlines():
+        blocks, cur, first = [], [], 0
+        for n, line in enumerate(text.splitlines()):
             if line.lstrip().startswith(prefix):
+                if not cur:
+                    first = n
                 cur.append(line.rstrip())
             elif cur:
-                blocks.append(cur)
+                blocks.append((first, cur))
                 cur = []
         if cur:
-            blocks.append(cur)
+            blocks.append((first, cur))
         return blocks
 
     if ext == ".asm":
         return line_blocks(";")
     if ext in ("", ".sh", ".mak"):
         return line_blocks("#")
+
+    def match_block(m):
+        return bisect.bisect_right(offsets, m.start()) - 1, [l.rstrip() for l in m.group(0).splitlines()]
+
     blocks = []
     if ext == ".html":
-        for m in re.finditer(r"<!--.*?-->", text, re.S):
-            blocks.append([l.rstrip() for l in m.group(0).splitlines()])
-    for m in re.finditer(r"/\*.*?\*/", text, re.S):
-        blocks.append([l.rstrip() for l in m.group(0).splitlines()])
+        blocks.extend(match_block(m) for m in re.finditer(r"<!--.*?-->", text, re.S))
+    blocks.extend(match_block(m) for m in re.finditer(r"/\*.*?\*/", text, re.S))
     return blocks + line_blocks("//")
 
 
@@ -254,6 +276,51 @@ def classify(block, parts):
     if not TRIGGER.search(residual):
         return ("STANDARD" if matched else None), residual, matched
     return "REVIEW", residual, matched
+
+
+def file_blocks(text, ext, parts, need=None):
+    """[(kind, residual, matched, block, full)] for every comment block of a file (see classify).
+    need is a regex (STD_NEED): when no comment block of the file contains it, a GPL grant of the standard
+    parts is not standard but 'GPL' (a line comment header is split into several blocks at its blank lines,
+    so the exception sentence is looked for in the whole file).
+    For a block that needs a review (kind GPL or REVIEW), full is the block preceded by the comment blocks
+    right before it that carry copyright lines and no license-like words and are separated from it only by
+    blank lines (the copyright holders named above a license block); for any other block it is the block
+    itself."""
+    lines = text.splitlines()
+    blocks = comment_blocks(text, ext)
+    info = [list(classify(b[1], parts)) for b in blocks]
+    if need is not None and not any(re.search(need, plain(b[1])) for b in blocks):
+        for i, (_first, block) in enumerate(blocks):
+            if info[i][0] != "GPL" and any(GPL_WORDS.search(m) for m in info[i][2]):
+                info[i][0], info[i][1] = "GPL", plain(block)
+    order = sorted(range(len(blocks)), key=lambda k: blocks[k][0])
+    rank = {k: r for r, k in enumerate(order)}
+    out = []
+    for k, (first, block) in enumerate(blocks):
+        kind, residual, matched = info[k]
+        full = block
+        if kind in ("GPL", "REVIEW"):
+            r = rank[k]
+            while r > 0:
+                pk = order[r - 1]
+                pfirst, plines = blocks[pk]
+                plast = pfirst + len(plines) - 1
+                if (info[pk][0] is not None or not any(COPYRIGHT_RX.search(l) for l in plines)
+                        or plast >= first or any(l.strip() for l in lines[plast + 1:first])):
+                    break
+                full = plines + [""] * (first - plast - 1) + full
+                first = pfirst
+                r -= 1
+        out.append((kind, residual, matched, block, full))
+    return out
+
+
+def review_text(block, full, residual):
+    """Text shown for a block that is not in the allow list: what is left of it after the standard parts and
+    the copyright blocks that are copied with it."""
+    extra = strip_markers(full[:len(full) - len(block)])
+    return residual[:3000] + (("\n    copyright blocks copied with it:\n    " + "\n    ".join(extra)) if extra else "")
 
 
 def load_allow(path):
@@ -384,9 +451,6 @@ def strip_markers(block):
     while out and not out[-1].strip():
         out.pop()
     return out
-
-
-COPYRIGHT_RX = re.compile(r"copyright|\(c\)\s*\d{4}", re.I)
 
 
 class External:
@@ -568,18 +632,18 @@ def main():
     for f in sorted(files):
         fext = os.path.splitext(f)[1]
         kinds = []
-        for block in comment_blocks(read_text(os.path.join(root, f)), fext):
-            kind, residual, _matched = classify(block, STD_PARTS["FFmpeg"])
+        for kind, residual, _matched, block, full in file_blocks(read_text(os.path.join(root, f)), fext,
+                                                                  STD_PARTS["FFmpeg"]):
             if kind is None:
                 continue
             if kind == "STANDARD":
                 kind = "LGPL"
             else:
-                h = block_hash(block)
+                h = block_hash(full)
                 key = lookup(f, None, h)
                 if key is None:
                     bad.append("%s text not in the allow list: %s <family> %s\n    %s"
-                               % ("GPL" if kind == "GPL" else "license-like", h, f, residual[:3000]))
+                               % ("GPL" if kind == "GPL" else "license-like", h, f, review_text(block, full, residual)))
                     continue
                 fam, origins = allow[key]
                 if kind == "GPL" and fam != GPL_FAMILY:
@@ -591,7 +655,7 @@ def main():
                 used_allow.add(key)
                 kind = fam
                 if fam != "none":
-                    notices.append((f, fam, block, origins))
+                    notices.append((f, fam, full, origins))
             kinds.append(kind)
         gen = (" <- " + ", ".join(generated[f])) if f in generated else ""
         log.append("%-60s %-26s %d objects%s" % (f, ",".join(sorted(set(kinds))) or "-", len(files[f]), gen))
@@ -628,8 +692,7 @@ def main():
         data["files"].append(rel)
         parts = STD_PARTS.get(p, [])
         kinds = []
-        for block in comment_blocks(read_text(real), ".h"):
-            kind, residual, matched = classify(block, parts)
+        for kind, residual, matched, block, full in file_blocks(read_text(real), ".h", parts, STD_NEED.get(p)):
             if kind is None:
                 continue
             if kind == "STANDARD":
@@ -643,13 +706,14 @@ def main():
                     data["std"][skey] = body
                 kinds.append("standard")
                 continue
-            h = block_hash(block)
+            h = block_hash(full)
             key = lookup(fid, "%s:*" % p, h)
             if key is None:
                 if (p, h) not in reported:
                     reported.add((p, h))
                     bad.append("%s text not in the allow list: %s <family> %s:* (first seen in %s)\n    %s"
-                               % ("GPL" if kind == "GPL" else "license-like", h, p, rel, residual[:3000]))
+                               % ("GPL" if kind == "GPL" else "license-like", h, p, rel,
+                                  review_text(block, full, residual)))
                 continue
             fam, origins = allow[key]
             if kind == "GPL" and fam != GPL_FAMILY:
@@ -661,7 +725,7 @@ def main():
             used_allow.add(key)
             kinds.append(fam)
             if fam != "none":
-                entry = data["blocks"].setdefault(h, [fam, strip_markers(block), [], origins])
+                entry = data["blocks"].setdefault(h, [fam, strip_markers(full), [], origins])
                 entry[2].append(rel)
                 for o in origins:
                     origin(o)
