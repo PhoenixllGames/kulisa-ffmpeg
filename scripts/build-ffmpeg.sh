@@ -61,6 +61,7 @@ args=(
   --extra-ldflags=-static-libgcc
   --extra-ldflags=-static-libstdc++
   --extra-ldflags=-Wl,--no-insert-timestamp
+  --extra-libs=-lstdc++
 )
 
 for p in $PROGRAMS; do args+=("--enable-$p"); done
