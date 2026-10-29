@@ -11,8 +11,10 @@ PROGRAMS="ffmpeg"
 # Libraries kept (every other library is disabled).
 LIBRARIES="avutil avcodec avformat avfilter swscale swresample avdevice"
 
-# Container formats and I/O. FFmpeg gets no network and no file access: pipes only (the encoder
-# probe writes to "-f null -", which is the pipe protocol as well).
+# Container formats and I/O. FFmpeg gets no network and no file access: pipes only. Input and output
+# must be named pipe:0 and pipe:1. The ffmpeg tool maps the input name "-" to the fd protocol, which
+# is not built, so "-i -" fails with "Protocol not found"; an output "-" maps to pipe:. The encoder
+# probe "-f null -" opens no protocol at all (the null muxer writes nothing).
 PROTOCOLS="pipe"
 DEMUXERS="flv live_flv"
 MUXERS="flv null"
@@ -36,6 +38,9 @@ EXTERNAL="ffnvcodec nvenc nvdec cuvid cuda-llvm amf libvpl mediafoundation d3d11
 
 # Parts that configure enables by default and that no pipeline here needs (--disable-<name>).
 # faan: the floating point AAN DCT. Its faandct option is the only thing that selects fdctdsp in this
-# build, which compiles the IJG forward DCT (jfdctfst.c, jfdctint.c). idctdsp stays: the h264 decoder
-# suggests error_resilience, which selects me_cmp, which selects idctdsp (with the IJG jrevdct.c).
-DISABLE="faan"
+# build, which compiles the IJG forward DCT (jfdctfst.c, jfdctint.c).
+# error-resilience: the h264 decoder only suggests error_resilience (h264_decoder_suggest), which
+# selects me_cmp, which selects idctdsp, which compiles the IJG inverse DCT (jrevdct.c). Nothing else
+# here selects me_cmp or idctdsp, so this drops the last IJG code. The cost is no h264 error
+# concealment on corrupt input; the local OBS to pipe input has no packet loss.
+DISABLE="faan error-resilience"
